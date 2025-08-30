@@ -157,8 +157,13 @@ class AccountQualityCalculator:
         # 获取加权系数
         multiplier = self.get_quality_multiplier(total_score)
         
-        logger.info(f"账户质量评分 - 粉丝: {follower_score:.2f}, 点赞: {likes_score:.2f}, "
-                   f"发布: {posting_score:.2f}, 总分: {total_score:.2f}, 系数: {multiplier}")
+        # 详细计算过程日志
+        logger.info(f"账户质量评分计算详情:")
+        logger.info(f"  粉丝数量: {user_profile.follower_count:,} → 得分: {follower_score:.2f} × 40% = {follower_score * 0.4:.2f}")
+        logger.info(f"  总点赞数: {user_profile.total_likes:,} → 得分: {likes_score:.2f} × 40% = {likes_score * 0.4:.2f}")
+        logger.info(f"  发布频率: 得分: {posting_score:.2f} × 20% = {posting_score * 0.2:.2f}")
+        logger.info(f"  账户质量总分: {total_score:.2f}")
+        logger.info(f"  质量加权系数: {multiplier:.3f}")
         
         return AccountQualityScore(
             follower_score=follower_score,

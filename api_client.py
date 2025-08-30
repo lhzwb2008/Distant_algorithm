@@ -73,29 +73,54 @@ class TiKhubAPIClient:
                     raise
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
                 
-    def fetch_user_profile(self, username: str) -> UserProfile:
+    def fetch_user_profile(self, username_or_secuid: str) -> UserProfile:
         """获取用户档案信息
         
         Args:
-            username: TikTok用户名
+            username_or_secuid: TikTok用户名或secUid
             
         Returns:
             用户档案数据
         """
-        params = {'username': username}
+        # 尝试使用secUid参数
+        if username_or_secuid.startswith('MS4wLjABAAAA'):
+            # 这是secUid格式
+            params = {'secUid': username_or_secuid}
+        else:
+            # 这是用户名格式
+            params = {'username': username_or_secuid}
+        
         data = self._make_request(Config.USER_PROFILE_ENDPOINT, params)
         
+        # 解析API响应数据结构
+        user_info = data.get('userInfo', {}) if isinstance(data, dict) else {}
+        user_data = user_info.get('user', {}) if isinstance(user_info, dict) else {}
+        stats_data = user_info.get('stats', {}) if isinstance(user_info, dict) else {}
+        
+        # 确保user_data和stats_data是字典类型
+        if not isinstance(user_data, dict):
+            user_data = {}
+        if not isinstance(stats_data, dict):
+            stats_data = {}
+        
+        # 安全获取avatar_url
+        avatar_url = ''
+        if isinstance(user_data.get('avatarThumb'), dict):
+            url_list = user_data['avatarThumb'].get('urlList', [])
+            if isinstance(url_list, list) and len(url_list) > 0:
+                avatar_url = url_list[0]
+        
         return UserProfile(
-            user_id=data.get('id', ''),
-            username=data.get('unique_id', ''),
-            display_name=data.get('nickname', ''),
-            follower_count=data.get('follower_count', 0),
-            following_count=data.get('following_count', 0),
-            total_likes=data.get('total_favorited', 0),
-            video_count=data.get('aweme_count', 0),
-            bio=data.get('signature', ''),
-            avatar_url=data.get('avatar_thumb', {}).get('url_list', [''])[0],
-            verified=data.get('verification_type', 0) > 0
+            user_id=user_data.get('id', ''),
+            username=user_data.get('uniqueId', ''),
+            display_name=user_data.get('nickname', ''),
+            follower_count=stats_data.get('followerCount', 0),
+            following_count=stats_data.get('followingCount', 0),
+            total_likes=stats_data.get('heartCount', 0),  # 使用heartCount作为总点赞数
+            video_count=stats_data.get('videoCount', 0),
+            bio=user_data.get('signature', ''),
+            avatar_url=avatar_url,
+            verified=user_data.get('verified', False)
         )
         
     def fetch_video_metrics(self, video_id: str) -> VideoMetrics:
@@ -165,18 +190,19 @@ class TiKhubAPIClient:
         
         try:
             data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
+            logger.info(f"API响应数据结构键: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
             logger.debug(f"API响应数据结构: {data}")
             
             # 尝试多种可能的数据结构
             videos = []
             
-            # 尝试格式1: data.data.itemList
-            if 'data' in data and 'itemList' in data['data']:
-                videos = data['data']['itemList']
-                logger.debug(f"使用格式1获取到 {len(videos)} 个视频")
-            # 尝试格式2: data.itemList
-            elif 'itemList' in data:
+            # 尝试格式1: data.itemList (最常见的格式)
+            if 'itemList' in data:
                 videos = data['itemList']
+                logger.debug(f"使用格式1获取到 {len(videos)} 个视频")
+            # 尝试格式2: data.data.itemList
+            elif 'data' in data and 'itemList' in data['data']:
+                videos = data['data']['itemList']
                 logger.debug(f"使用格式2获取到 {len(videos)} 个视频")
             # 尝试格式3: data.aweme_list
             elif 'aweme_list' in data:
@@ -205,38 +231,118 @@ class TiKhubAPIClient:
             logger.error(f"获取用户视频列表失败: {e}")
             return []
             
-    def fetch_user_top_videos(self, user_id: str, count: int = 5) -> List[VideoDetail]:
-        """获取用户前N个作品的详细信息
+    def fetch_user_top_videos(self, user_id: str, count: int = 5, keyword: str = None) -> List[VideoDetail]:
+        """获取用户作品的详细信息
         
         Args:
-            user_id: 用户ID
-            count: 获取作品数量，默认5个
+            user_id: 用户ID (secUid)
+            count: 获取作品数量，默认5个（当没有关键词时使用）
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
             
         Returns:
             视频详情列表
         """
-        logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
+        if keyword:
+            logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品")
+            # 当有关键词时，获取更多视频以便筛选
+            api_count = 50  # 获取更多视频用于筛选
+        else:
+            logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
+            api_count = count
         
-        # 先获取视频ID列表
-        video_ids = self.fetch_user_videos(user_id, count)
+        # 直接调用API获取用户视频列表
+        params = {
+            'secUid': user_id,
+            'count': api_count
+        }
         
-        if not video_ids:
-            logger.warning(f"用户 {user_id} 没有找到任何视频")
-            return []
+        try:
+            # 使用配置中的API端点获取用户视频列表
+            data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
             
-        # 获取每个视频的详细信息
-        video_details = []
-        for video_id in video_ids[:count]:  # 确保只取前count个
-            try:
-                detail = self.fetch_video_detail(video_id)
-                video_details.append(detail)
-                logger.info(f"成功获取视频 {video_id} 的详细信息")
-            except Exception as e:
-                logger.error(f"获取视频 {video_id} 详细信息失败: {e}")
-                continue
-                
-        logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
-        return video_details
+            # 检查API响应状态
+            if data.get('statusCode', 1) != 0:
+                logger.warning(f"API返回错误状态: {data.get('statusMsg', 'Unknown error')}")
+                return []
+            
+            # 获取视频列表 - 使用与fetch_user_videos相同的逻辑
+            videos = []
+            
+            # 尝试格式1: data.itemList (最常见的格式)
+            if 'itemList' in data:
+                videos = data['itemList']
+                logger.debug(f"使用格式1获取到 {len(videos)} 个视频")
+            # 尝试格式2: data.data.itemList
+            elif 'data' in data and 'itemList' in data['data']:
+                videos = data['data']['itemList']
+                logger.debug(f"使用格式2获取到 {len(videos)} 个视频")
+            # 尝试格式3: data.aweme_list
+            elif 'aweme_list' in data:
+                videos = data['aweme_list']
+                logger.debug(f"使用格式3获取到 {len(videos)} 个视频")
+            # 尝试格式4: data.data.aweme_list
+            elif 'data' in data and 'aweme_list' in data['data']:
+                videos = data['data']['aweme_list']
+                logger.debug(f"使用格式4获取到 {len(videos)} 个视频")
+            else:
+                logger.warning(f"未知的API响应格式，可用的键: {list(data.keys())}")
+                return []
+            
+            # 从视频列表构建VideoDetail对象，并获取额外的指标数据
+            video_details = []
+            
+            # 如果有关键词，先筛选匹配的视频
+            if keyword:
+                filtered_videos = []
+                for video in videos:
+                    desc = video.get('desc', '').lower()
+                    if keyword.lower() in desc:
+                        filtered_videos.append(video)
+                        logger.info(f"找到匹配关键词 '{keyword}' 的视频: {desc[:50]}...")
+                videos_to_process = filtered_videos
+                logger.info(f"关键词 '{keyword}' 匹配到 {len(filtered_videos)} 个视频")
+            else:
+                videos_to_process = videos[:count]
+            
+            for video in videos_to_process:
+                try:
+                    video_id = video.get('id', '')
+                    
+                    # 从基础API响应获取数据
+                    base_stats = video.get('stats', {})
+                    
+                    # 直接使用基础API数据（video_metrics API暂时不可用）
+                    view_count = base_stats.get('playCount', 0)
+                    like_count = base_stats.get('diggCount', 0)
+                    comment_count = base_stats.get('commentCount', 0)
+                    share_count = base_stats.get('shareCount', 0)
+                    collect_count = base_stats.get('collectCount', 0)
+                    
+                    video_detail = VideoDetail(
+                        video_id=video_id,
+                        desc=video.get('desc', ''),
+                        create_time=datetime.fromtimestamp(video.get('createTime', 0)),
+                        author_id=video.get('author', {}).get('uniqueId', ''),
+                        view_count=view_count,
+                        like_count=like_count,
+                        comment_count=comment_count,
+                        share_count=share_count,
+                        download_count=base_stats.get('downloadCount', 0),  # 下载数只在基础API中有
+                        collect_count=collect_count,
+                        duration=video.get('video', {}).get('duration', 0)
+                    )
+                    video_details.append(video_detail)
+                    logger.info(f"成功解析视频 {video_detail.video_id} (播放: {view_count}, 点赞: {like_count})")
+                except Exception as e:
+                    logger.error(f"解析视频数据失败: {e}")
+                    continue
+                    
+            logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
+            return video_details
+            
+        except Exception as e:
+            logger.error(f"获取用户视频列表失败: {e}")
+            return []
         
     def get_secuid_from_username(self, username: str) -> Optional[str]:
         """通过用户名获取secUid

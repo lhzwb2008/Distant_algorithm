@@ -149,26 +149,45 @@ class CreatorScoreCalculator:
             logger.error(f"计算用户 {user_profile.username} 评分时发生错误: {e}")
             raise
             
-    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 5) -> CreatorScore:
+    def calculate_score(self, sec_uid: str, keyword: str = None) -> float:
+        """计算创作者评分（简化接口）
+        
+        Args:
+            sec_uid: 用户secUid
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            
+        Returns:
+            最终评分
+        """
+        creator_score = self.calculate_creator_score_by_user_id(sec_uid, keyword=keyword)
+        return creator_score.final_score
+    
+    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 5, keyword: str = None) -> CreatorScore:
         """通过用户ID计算创作者评分（模拟分数计算）
         
         Args:
             user_id: TikTok用户ID
-            video_count: 获取的视频数量，默认5个
+            video_count: 获取的视频数量，默认5个（当没有关键词时使用）
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
             
         Returns:
             创作者评分对象
         """
         try:
-            logger.info(f"开始通过用户ID {user_id} 计算创作者评分")
+            # 1. 使用传入的user_id作为secUid（因为调用方已经转换过了）
+            sec_uid = user_id
+            print(f"✅ 使用secUid: {sec_uid[:20]}...")
             
-            # 1. 获取用户前N个作品
-            video_details = self.api_client.fetch_user_top_videos(user_id, video_count)
+            # 2. 获取用户作品
+            if keyword:
+                print(f"📡 API调用: 获取用户包含关键词 '{keyword}' 的视频")
+                video_details = self.api_client.fetch_user_top_videos(sec_uid, keyword=keyword)
+            else:
+                print(f"📡 API调用: 获取用户视频列表 (前{video_count}个)")
+                video_details = self.api_client.fetch_user_top_videos(sec_uid, video_count)
             
             if not video_details:
-                logger.warning(f"用户 {user_id} 没有找到任何视频数据")
-                # 返回默认评分
-
+                print(f"❌ 用户 {user_id} 没有找到任何视频数据")
                 return CreatorScore(
                     user_id=user_id,
                     username=f"user_{user_id}",
@@ -179,46 +198,89 @@ class CreatorScoreCalculator:
                     calculated_at=datetime.now()
                 )
             
-            # 2. 通过第一个视频获取用户档案信息（如果可能）
-            # 这里简化处理，创建一个基本的用户档案
-            user_profile = UserProfile(
-                user_id=user_id,
-                username=f"user_{user_id}",
-                display_name=f"user_{user_id}",
-                follower_count=0,  # 这个需要从API获取
-                following_count=0,
-                total_likes=sum(video.like_count for video in video_details),
-                video_count=len(video_details),
-                bio="",
-                avatar_url="",
-                verified=False
-            )
+            print(f"✅ 成功获取 {len(video_details)} 个视频数据")
             
-            # 3. 尝试获取更详细的用户档案信息
+            # 3. 获取用户档案信息
+            print(f"📡 API调用: 获取用户档案信息")
             try:
-                # 如果有用户名，可以获取更详细的档案
-                if hasattr(video_details[0], 'author') and video_details[0].author:
-                    detailed_profile = self.api_client.fetch_user_profile(video_details[0].author)
-                    user_profile = detailed_profile
+                user_profile = self.api_client.fetch_user_profile(sec_uid)
+                print(f"✅ 成功获取用户档案: {user_profile.username}")
+                print(f"📊 用户数据: 粉丝数 {user_profile.follower_count}, 总点赞 {user_profile.total_likes}")
             except Exception as e:
-                logger.warning(f"无法获取详细用户档案，使用基本信息: {e}")
+                print(f"⚠️ 无法获取详细用户档案，使用基本信息: {str(e)}")
+                # 创建基本用户档案
+                user_profile = UserProfile(
+                    user_id=user_id,
+                    username=f"user_{user_id}",
+                    display_name=f"user_{user_id}",
+                    follower_count=0,
+                    following_count=0,
+                    total_likes=sum(video.like_count for video in video_details),
+                    video_count=len(video_details),
+                    bio="",
+                    avatar_url="",
+                    verified=False
+                )
             
             # 4. 计算账户质量评分
+            print(f"\n🧮 计算账户质量评分")
+            print(f"📋 账户质量评分包含三个维度:")
+            print(f"   • 粉丝数量评分 (权重40%)")
+            print(f"   • 总点赞数评分 (权重40%)")
+            print(f"   • 发布频率评分 (权重20%)")
+            
             account_quality = self.account_calculator.calculate_account_quality(
                 user_profile, video_details
             )
             
+            print(f"📊 账户质量评分详情:")
+            print(f"   • 粉丝数量: {user_profile.follower_count:,} → 得分: {account_quality.follower_score:.2f}/100")
+            print(f"   • 总点赞数: {user_profile.total_likes:,} → 得分: {account_quality.likes_score:.2f}/100")
+            print(f"   • 发布频率: 得分: {account_quality.posting_score:.2f}/100")
+            print(f"   • 账户质量总分: {account_quality.total_score:.2f}/100")
+            print(f"   • 质量加权系数: {account_quality.multiplier:.3f}")
+            
             # 5. 计算内容互动评分
+            print(f"\n🧮 计算内容互动评分")
+            print(f"📋 内容互动评分包含四个维度:")
+            print(f"   • 播放量表现 (权重10%)")
+            print(f"   • 点赞率表现 (权重25%)")
+            print(f"   • 评论率表现 (权重30%)")
+            print(f"   • 分享率表现 (权重35%)")
+            
             content_interaction = self.content_calculator.calculate_weighted_content_score(
                 video_details, user_profile.follower_count
             )
             
+            print(f"📊 内容互动评分详情:")
+            print(f"   • 播放量表现: {content_interaction.view_score:.2f}/100")
+            print(f"   • 点赞率表现: {content_interaction.like_score:.2f}/100")
+            print(f"   • 评论率表现: {content_interaction.comment_score:.2f}/100")
+            print(f"   • 分享率表现: {content_interaction.share_score:.2f}/100")
+            print(f"   • 内容互动总分: {content_interaction.total_score:.2f}/100")
+            
             # 6. 计算最终评分
+            print(f"\n🧮 计算最终评分")
+            print(f"📋 主评分公式:")
+            print(f"   TikTok Creator Score = (内容互动数据 × 65% + 内容质量 × 35%) × 账户质量加权")
+            print(f"   其中: 内容质量固定为60分")
+            
             final_score = self._calculate_final_score(
                 account_quality, content_interaction
             )
             
-            logger.info(f"用户ID {user_id} 评分计算完成，最终得分: {final_score:.2f}")
+            # 计算基础分数用于显示
+            base_score = (
+                content_interaction.total_score * self.content_weight +
+                self.content_quality_score * self.content_quality_weight
+            )
+            
+            print(f"📊 最终评分计算详情:")
+            print(f"   • 内容互动分数: {content_interaction.total_score:.2f} × 65% = {content_interaction.total_score * 0.65:.2f}")
+            print(f"   • 内容质量分数: {self.content_quality_score:.2f} × 35% = {self.content_quality_score * 0.35:.2f}")
+            print(f"   • 基础分数: {base_score:.2f}")
+            print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
+            print(f"   • 最终评分: {final_score:.2f}")
             
             return CreatorScore(
                 user_id=user_profile.user_id,

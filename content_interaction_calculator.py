@@ -17,10 +17,14 @@ class ContentInteractionCalculator:
     def calculate_view_score(self, views: int, follower_count: int) -> float:
         """计算视频播放量得分
         
-        评分公式：min((views / followers) * 100, 100)
+        评分公式：
+        - 有粉丝数时：min((views / followers) * 100, 100)
+        - 无粉丝数时：基于播放量绝对值评分
+        
         基准值：
         - 1.0倍播放量 = 100分 (满分)
         - 0.5倍播放量 = 50分 (及格)
+        - 无粉丝时：1000播放量 = 50分，2000播放量 = 100分
         
         Args:
             views: 视频播放量
@@ -30,7 +34,10 @@ class ContentInteractionCalculator:
             播放量得分 (0-100)
         """
         if follower_count <= 0:
-            return 0.0
+            # 当没有粉丝数据时，基于播放量绝对值评分
+            # 基准：2000播放量 = 100分，1000播放量 = 50分
+            score = min((views / 2000) * 100, 100)
+            return max(0.0, score)
             
         view_ratio = views / follower_count
         score = min(view_ratio * 100, 100)
@@ -273,19 +280,19 @@ class ContentInteractionCalculator:
             weighted_comments += video.comment_count * weight
             weighted_shares += video.share_count * weight
             
-        # 计算加权平均值
-        avg_views = weighted_views / total_weight
-        avg_likes = weighted_likes / total_weight
-        avg_comments = weighted_comments / total_weight
-        avg_shares = weighted_shares / total_weight
+        # 计算累计值（按文档要求使用累计值而非平均值）
+        total_views = sum(video.view_count for video in sorted_videos)
+        total_likes = sum(video.like_count for video in sorted_videos)
+        total_comments = sum(video.comment_count for video in sorted_videos)
+        total_shares = sum(video.share_count for video in sorted_videos)
         
-        # 计算各项得分
-        view_score = self.calculate_view_score(int(avg_views), follower_count)
-        like_score = self.calculate_like_score(int(avg_likes), int(avg_views))
-        comment_score = self.calculate_comment_score(int(avg_comments), int(avg_views))
-        share_score = self.calculate_share_score(int(avg_shares), int(avg_views))
+        # 计算各项得分（基于累计值）
+        view_score = self.calculate_view_score(total_views, follower_count)
+        like_score = self.calculate_like_score(total_likes, total_views)
+        comment_score = self.calculate_comment_score(total_comments, total_views)
+        share_score = self.calculate_share_score(total_shares, total_views)
         
-        # 权重计算总分
+        # 权重计算总分（按文档要求调整权重）
         total_score = (
             view_score * 0.10 +      # 播放量权重10%
             like_score * 0.25 +      # 点赞权重25%
@@ -293,8 +300,13 @@ class ContentInteractionCalculator:
             share_score * 0.35       # 分享权重35%
         )
         
-        logger.info(f"加权内容互动评分 - 播放: {view_score:.2f}, 点赞: {like_score:.2f}, "
-                   f"评论: {comment_score:.2f}, 分享: {share_score:.2f}, 总分: {total_score:.2f}")
+        # 详细计算过程日志
+        logger.info(f"📊 内容互动评分计算详情（基于累计值）:")
+        logger.info(f"   • 累计播放量: {total_views:,} → 得分: {view_score:.2f} × 10% = {view_score * 0.10:.2f}")
+        logger.info(f"   • 累计点赞数: {total_likes:,} → 得分: {like_score:.2f} × 25% = {like_score * 0.25:.2f}")
+        logger.info(f"   • 累计评论数: {total_comments:,} → 得分: {comment_score:.2f} × 30% = {comment_score * 0.30:.2f}")
+        logger.info(f"   • 累计分享数: {total_shares:,} → 得分: {share_score:.2f} × 35% = {share_score * 0.35:.2f}")
+        logger.info(f"   • 内容互动总分: {total_score:.2f}")
         
         return ContentInteractionScore(
             view_score=view_score,
