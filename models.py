@@ -53,6 +53,7 @@ class AccountQualityScore:
     posting_score: float   # 发布频率得分
     total_score: float     # 总分
     multiplier: float      # 加权系数
+    posting_details: dict = None  # 发布频率详细计算过程
     
 @dataclass
 class ContentInteractionScore:

@@ -342,9 +342,42 @@
                                     <span class="label">发布频率得分:</span>
                                     <span class="value">${breakdown.账户质量评分.发布频率得分}/100</span>
                                 </div>
+                                <div class="posting-details" style="margin-left: 20px; margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
+                                    <div style="font-weight: bold; color: #007bff; margin-bottom: 8px;">📊 发布频率详细计算过程:</div>
+                                    <div style="font-size: 14px; line-height: 1.6;">
+                                        ${breakdown.账户质量评分.发布频率详细计算.计算类型 ? `<div><strong>计算类型:</strong> ${breakdown.账户质量评分.发布频率详细计算.计算类型}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.总视频数 ? `<div><strong>总视频数:</strong> ${breakdown.账户质量评分.发布频率详细计算.总视频数}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.最近4周视频数 ? `<div><strong>最近4周视频数:</strong> ${breakdown.账户质量评分.发布频率详细计算.最近4周视频数}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.最早视频时间 ? `<div><strong>最早视频时间:</strong> ${breakdown.账户质量评分.发布频率详细计算.最早视频时间}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.最晚视频时间 ? `<div><strong>最晚视频时间:</strong> ${breakdown.账户质量评分.发布频率详细计算.最晚视频时间}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.时间跨度 ? `<div><strong>时间跨度:</strong> ${breakdown.账户质量评分.发布频率详细计算.时间跨度}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.周数计算 ? `<div><strong>周数计算:</strong> ${breakdown.账户质量评分.发布频率详细计算.周数计算}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.发布频率 ? `<div><strong>发布频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.发布频率}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.估算发布频率 ? `<div><strong>估算发布频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.估算发布频率}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.理想频率 ? `<div><strong>理想频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.理想频率}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.偏差 ? `<div><strong>偏差:</strong> ${breakdown.账户质量评分.发布频率详细计算.偏差}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.扣分 ? `<div><strong>扣分:</strong> ${breakdown.账户质量评分.发布频率详细计算.扣分}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.最终得分 ? `<div><strong>最终得分:</strong> ${breakdown.账户质量评分.发布频率详细计算.最终得分}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.假设时间跨度 ? `<div><strong>假设时间跨度:</strong> ${breakdown.账户质量评分.发布频率详细计算.假设时间跨度}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.结果 ? `<div><strong>结果:</strong> ${breakdown.账户质量评分.发布频率详细计算.结果}</div>` : ''}
+                                        ${breakdown.账户质量评分.发布频率详细计算.说明 ? `<div style="margin-top: 8px; color: #6c757d; font-style: italic;">${breakdown.账户质量评分.发布频率详细计算.说明}</div>` : ''}
+                                    </div>
+                                </div>
                                 <div class="breakdown-item">
                                     <span class="label">质量加权系数:</span>
                                     <span class="value">${breakdown.账户质量评分.质量加权系数}</span>
+                                </div>
+                                
+                                <!-- 账户质量评分详细计算过程 -->
+                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #e8f4fd; border-radius: 6px; border-left: 4px solid #007bff;">
+                                    <div style="font-weight: bold; color: #007bff; margin-bottom: 8px;">📊 账户质量评分计算详情:</div>
+                                    <div style="font-size: 14px; line-height: 1.6;">
+                                        <div><strong>粉丝数量:</strong> ${breakdown.账户质量评分.详细计算过程.粉丝数量计算}</div>
+                                        <div><strong>总点赞数:</strong> ${breakdown.账户质量评分.详细计算过程.总点赞数计算}</div>
+                                        <div><strong>发布频率:</strong> ${breakdown.账户质量评分.详细计算过程.发布频率计算}</div>
+                                        <div><strong>账户质量总分:</strong> ${breakdown.账户质量评分.详细计算过程.账户质量总分}</div>
+                                        <div><strong>质量加权系数:</strong> ${breakdown.账户质量评分.详细计算过程.质量加权系数}</div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -366,6 +399,18 @@
                                     <span class="label">分享得分 (权重35%):</span>
                                     <span class="value">${breakdown.内容互动评分.分享得分}/100</span>
                                 </div>
+                                
+                                <!-- 内容互动评分详细计算过程 -->
+                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #f0f8e8; border-radius: 6px; border-left: 4px solid #28a745;">
+                                    <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">📊 内容互动评分计算详情（基于累计值）:</div>
+                                    <div style="font-size: 14px; line-height: 1.6;">
+                                        <div><strong>播放量表现:</strong> ${breakdown.内容互动评分.详细计算过程.播放量表现}</div>
+                                        <div><strong>点赞率表现:</strong> ${breakdown.内容互动评分.详细计算过程.点赞率表现}</div>
+                                        <div><strong>评论率表现:</strong> ${breakdown.内容互动评分.详细计算过程.评论率表现}</div>
+                                        <div><strong>分享率表现:</strong> ${breakdown.内容互动评分.详细计算过程.分享率表现}</div>
+                                        <div><strong>内容互动总分:</strong> ${breakdown.内容互动评分.详细计算过程.内容互动总分}</div>
+                                    </div>
+                                </div>
                             </div>
                             
                             <div class="breakdown-section">
@@ -377,6 +422,30 @@
                                 <div class="breakdown-item">
                                     <span class="label">内容质量权重:</span>
                                     <span class="value">${breakdown.权重配置.内容质量权重}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="breakdown-section">
+                                <h5>🧮 最终评分计算</h5>
+                                <div class="breakdown-item">
+                                    <span class="label">计算公式:</span>
+                                    <span class="value">TikTok Creator Score = (内容互动数据 × 65% + 内容质量 × 35%) × 账户质量加权</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">内容质量固定分数:</span>
+                                    <span class="value">${breakdown.权重配置.内容质量固定分数}分</span>
+                                </div>
+                                
+                                <!-- 最终评分详细计算过程 -->
+                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                                    <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📊 最终评分计算详情:</div>
+                                    <div style="font-size: 14px; line-height: 1.6;">
+                                        <div><strong>内容互动分数:</strong> ${breakdown.最终评分详细计算.内容互动分数}</div>
+                                        <div><strong>内容质量分数:</strong> ${breakdown.最终评分详细计算.内容质量分数}</div>
+                                        <div><strong>基础分数:</strong> ${breakdown.最终评分详细计算.基础分数}</div>
+                                        <div><strong>账户质量加权:</strong> ${breakdown.最终评分详细计算.账户质量加权}</div>
+                                        <div><strong>最终评分:</strong> ${breakdown.最终评分详细计算.最终评分}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

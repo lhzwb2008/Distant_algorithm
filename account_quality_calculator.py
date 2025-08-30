@@ -63,7 +63,7 @@ class AccountQualityCalculator:
         score = min(math.log10(total_likes) * 12.5, 100)
         return max(0.0, score)
         
-    def calculate_posting_score(self, video_details: List[VideoDetail]) -> float:
+    def calculate_posting_score(self, video_details: List[VideoDetail]) -> Tuple[float, dict]:
         """计算发布频率得分
         
         评分公式：max(0, 100 - abs(weekly_frequency - 5) * 15)
@@ -75,7 +75,7 @@ class AccountQualityCalculator:
             video_details: 视频详情列表
             
         Returns:
-            发布频率得分 (0-100)
+            Tuple[float, dict]: (发布频率得分 (0-100), 详细计算过程)
         """
         if not video_details:
             return 0.0
@@ -84,17 +84,81 @@ class AccountQualityCalculator:
         now = datetime.now()
         four_weeks_ago = now - timedelta(weeks=4)
         
-        # 过滤最近4周的视频
-        recent_videos = [
-            video for video in video_details 
-            if video.create_time and video.create_time >= four_weeks_ago
-        ]
+        # 过滤最近4周的视频，同时处理无效时间戳的情况
+        recent_videos = []
+        invalid_time_videos = []
+        
+        logger.info(f"发布频率计算开始：")
+        logger.info(f"  当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"  4周前时间: {four_weeks_ago.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"  总视频数: {len(video_details)}")
+        
+        for i, video in enumerate(video_details):
+            logger.info(f"  视频{i+1}: ID={video.video_id}")
+            if video.create_time:
+                logger.info(f"    创建时间: {video.create_time.strftime('%Y-%m-%d %H:%M:%S')} (年份: {video.create_time.year})")
+                # 检查时间是否有效（不是1970年的时间戳）
+                if video.create_time.year > 1980:  # 合理的时间范围
+                    if video.create_time >= four_weeks_ago:
+                        recent_videos.append(video)
+                        logger.info(f"    ✅ 符合最近4周条件")
+                    else:
+                        logger.info(f"    ❌ 超出4周范围")
+                else:
+                    invalid_time_videos.append(video)
+                    logger.info(f"    ❌ 无效时间戳（年份 <= 1980）")
+            else:
+                invalid_time_videos.append(video)
+                logger.info(f"    ❌ 缺少创建时间")
+        
+        # 如果没有有效时间的视频，但有视频数据，则使用简化计算
+        if not recent_videos and invalid_time_videos:
+            logger.warning(f"检测到 {len(invalid_time_videos)} 个视频的时间戳无效，使用简化发布频率计算")
+            # 假设这些视频是最近发布的，按视频数量估算发布频率
+            # 假设平均每周发布频率为视频总数除以4周
+            estimated_weekly_frequency = len(video_details) / 4.0
+            
+            # 应用评分公式
+            ideal_frequency = 5
+            penalty_coefficient = 15
+            deviation = abs(estimated_weekly_frequency - ideal_frequency)
+            penalty = deviation * penalty_coefficient
+            score = max(0, 100 - penalty)
+            
+            details = {
+                "计算类型": "简化计算（时间戳无效）",
+                "总视频数": len(video_details),
+                "假设时间跨度": "4周",
+                "估算发布频率": f"{len(video_details)} ÷ 4 = {estimated_weekly_frequency:.2f}次/周",
+                "理想频率": f"{ideal_frequency}次/周",
+                "偏差": f"|{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
+                "扣分": f"{deviation:.2f} × {penalty_coefficient} = {penalty:.2f}",
+                "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
+            }
+            
+            logger.info(f"简化计算详情:")
+            logger.info(f"  总视频数: {len(video_details)}")
+            logger.info(f"  假设时间跨度: 4周")
+            logger.info(f"  估算发布频率: {len(video_details)} ÷ 4 = {estimated_weekly_frequency:.2f}次/周")
+            logger.info(f"  理想频率: {ideal_frequency}次/周")
+            logger.info(f"  偏差: |{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}")
+            logger.info(f"  扣分: {deviation:.2f} × {penalty_coefficient} = {penalty:.2f}")
+            logger.info(f"  最终得分: max(0, 100 - {penalty:.2f}) = {score:.2f}")
+            return score, details
         
         if not recent_videos:
-            return 0.0
+            details = {
+                "计算类型": "无有效视频",
+                "结果": "0.00次/周 (无最近4周视频), 得分: 0.00"
+            }
+            logger.info("发布频率计算结果: 0.00次/周 (无最近4周视频), 得分: 0.00")
+            return 0.0, details
             
         # 计算周平均发布频率
-        weeks_count = min(4, (now - min(video.create_time for video in recent_videos)).days / 7)
+        oldest_video_time = min(video.create_time for video in recent_videos)
+        newest_video_time = max(video.create_time for video in recent_videos)
+        time_span_days = (now - oldest_video_time).days
+        weeks_count = min(4, time_span_days / 7)
         if weeks_count <= 0:
             weeks_count = 1
             
@@ -103,11 +167,36 @@ class AccountQualityCalculator:
         # 应用评分公式
         ideal_frequency = 5
         penalty_coefficient = 15
+        deviation = abs(weekly_frequency - ideal_frequency)
+        penalty = deviation * penalty_coefficient
+        score = max(0, 100 - penalty)
         
-        score = max(0, 100 - abs(weekly_frequency - ideal_frequency) * penalty_coefficient)
+        details = {
+            "计算类型": "正常计算",
+            "最近4周视频数": len(recent_videos),
+            "最早视频时间": oldest_video_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "最晚视频时间": newest_video_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "时间跨度": f"(当前时间 - 最早视频时间) = {time_span_days}天",
+            "周数计算": f"min(4, {time_span_days} ÷ 7) = min(4, {time_span_days/7:.2f}) = {weeks_count:.2f}周",
+            "发布频率": f"{len(recent_videos)} ÷ {weeks_count:.2f} = {weekly_frequency:.2f}次/周",
+            "理想频率": f"{ideal_frequency}次/周",
+            "偏差": f"|{weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
+            "扣分": f"{deviation:.2f} × {penalty_coefficient} = {penalty:.2f}",
+            "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
+        }
         
-        logger.info(f"发布频率: {weekly_frequency:.2f}次/周, 得分: {score:.2f}")
-        return score
+        logger.info(f"正常计算详情:")
+        logger.info(f"  最近4周视频数: {len(recent_videos)}")
+        logger.info(f"  最早视频时间: {oldest_video_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"  最晚视频时间: {newest_video_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"  时间跨度: (当前时间 - 最早视频时间) = {time_span_days}天")
+        logger.info(f"  周数计算: min(4, {time_span_days} ÷ 7) = min(4, {time_span_days/7:.2f}) = {weeks_count:.2f}周")
+        logger.info(f"  发布频率: {len(recent_videos)} ÷ {weeks_count:.2f} = {weekly_frequency:.2f}次/周")
+        logger.info(f"  理想频率: {ideal_frequency}次/周")
+        logger.info(f"  偏差: |{weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}")
+        logger.info(f"  扣分: {deviation:.2f} × {penalty_coefficient} = {penalty:.2f}")
+        logger.info(f"  最终得分: max(0, 100 - {penalty:.2f}) = {score:.2f}")
+        return score, details
         
     def get_quality_multiplier(self, total_score: float) -> float:
         """获取账户质量加权系数
@@ -145,7 +234,7 @@ class AccountQualityCalculator:
         # 计算各项得分
         follower_score = self.calculate_follower_score(user_profile.follower_count)
         likes_score = self.calculate_likes_score(user_profile.total_likes)
-        posting_score = self.calculate_posting_score(video_details or [])
+        posting_score, posting_details = self.calculate_posting_score(video_details or [])
         
         # 权重计算总分
         total_score = (
@@ -170,7 +259,8 @@ class AccountQualityCalculator:
             likes_score=likes_score,
             posting_score=posting_score,
             total_score=total_score,
-            multiplier=multiplier
+            multiplier=multiplier,
+            posting_details=posting_details
         )
         
     def calculate_avg_views_per_follower(self, 

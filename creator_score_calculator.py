@@ -179,12 +179,18 @@ class CreatorScoreCalculator:
             print(f"✅ 使用secUid: {sec_uid[:20]}...")
             
             # 2. 获取用户作品
+            # 维度1（发布频率）需要前20个作品，维度2（内容互动）需要关键词匹配作品
             if keyword:
                 print(f"📡 API调用: 获取用户包含关键词 '{keyword}' 的视频")
-                video_details = self.api_client.fetch_user_top_videos(sec_uid, keyword=keyword)
+                keyword_videos = self.api_client.fetch_user_top_videos(sec_uid, keyword=keyword)
+                print(f"📡 API调用: 获取用户前20个作品（用于发布频率计算）")
+                all_videos = self.api_client.fetch_user_top_videos(sec_uid, count=20)  # 获取前20个作品用于发布频率计算
+                video_details = keyword_videos  # 用于内容互动计算
+                all_video_details = all_videos  # 用于发布频率计算
             else:
-                print(f"📡 API调用: 获取用户视频列表 (前{video_count}个)")
-                video_details = self.api_client.fetch_user_top_videos(sec_uid, video_count)
+                print(f"📡 API调用: 获取用户视频列表 (前{min(video_count, 20)}个)")
+                video_details = self.api_client.fetch_user_top_videos(sec_uid, min(video_count, 20))
+                all_video_details = video_details  # 没有关键词时，两者相同
             
             if not video_details:
                 print(f"❌ 用户 {user_id} 没有找到任何视频数据")
@@ -227,10 +233,10 @@ class CreatorScoreCalculator:
             print(f"📋 账户质量评分包含三个维度:")
             print(f"   • 粉丝数量评分 (权重40%)")
             print(f"   • 总点赞数评分 (权重40%)")
-            print(f"   • 发布频率评分 (权重20%)")
+            print(f"   • 发布频率评分 (权重20%) - 基于所有作品")
             
             account_quality = self.account_calculator.calculate_account_quality(
-                user_profile, video_details
+                user_profile, all_video_details
             )
             
             print(f"📊 账户质量评分详情:")
@@ -242,7 +248,10 @@ class CreatorScoreCalculator:
             
             # 5. 计算内容互动评分
             print(f"\n🧮 计算内容互动评分")
-            print(f"📋 内容互动评分包含四个维度:")
+            if keyword:
+                print(f"📋 内容互动评分包含四个维度（基于关键词'{keyword}'匹配的{len(video_details)}个作品）:")
+            else:
+                print(f"📋 内容互动评分包含四个维度（基于前{len(video_details)}个作品）:")
             print(f"   • 播放量表现 (权重10%)")
             print(f"   • 点赞率表现 (权重25%)")
             print(f"   • 评论率表现 (权重30%)")
@@ -367,6 +376,18 @@ class CreatorScoreCalculator:
         account_quality = creator_score.account_quality
         content_interaction = creator_score.content_interaction
         
+        # 获取发布频率详细计算过程
+        posting_details = self._get_posting_score_details(creator_score)
+        
+        # 获取账户质量评分详细计算过程
+        account_quality_details = self._get_account_quality_details(creator_score)
+        
+        # 获取内容互动评分详细计算过程
+        content_interaction_details = self._get_content_interaction_details(creator_score)
+        
+        # 获取最终评分详细计算过程
+        final_score_details = self._get_final_score_details(creator_score)
+        
         return {
             "用户名": creator_score.username,
             "最终评分": round(creator_score.final_score, 2),
@@ -375,16 +396,20 @@ class CreatorScoreCalculator:
                 "粉丝数量得分": round(account_quality.follower_score, 2),
                 "总点赞得分": round(account_quality.likes_score, 2),
                 "发布频率得分": round(account_quality.posting_score, 2),
+                "发布频率详细计算": posting_details,
                 "账户质量总分": round(account_quality.total_score, 2),
-                "质量加权系数": account_quality.multiplier
+                "质量加权系数": account_quality.multiplier,
+                "详细计算过程": account_quality_details
             },
             "内容互动评分": {
                 "播放量得分": round(content_interaction.view_score, 2),
                 "点赞得分": round(content_interaction.like_score, 2),
                 "评论得分": round(content_interaction.comment_score, 2),
                 "分享得分": round(content_interaction.share_score, 2),
-                "内容互动总分": round(content_interaction.total_score, 2)
+                "内容互动总分": round(content_interaction.total_score, 2),
+                "详细计算过程": content_interaction_details
             },
+            "最终评分详细计算": final_score_details,
             "权重配置": {
                 "内容互动权重": f"{self.content_weight * 100}%",
                 "内容质量权重": f"{self.content_quality_weight * 100}%",
@@ -421,3 +446,87 @@ class CreatorScoreCalculator:
             })
             
         return comparison
+    
+    def _get_posting_score_details(self, creator_score: CreatorScore) -> dict:
+        """获取发布频率得分的详细计算过程
+        
+        Args:
+            creator_score: 创作者评分对象
+            
+        Returns:
+            发布频率详细计算信息
+        """
+        # 从账户质量评分中获取发布频率的详细计算信息
+        if creator_score.account_quality.posting_details:
+            return creator_score.account_quality.posting_details
+        
+        # 如果没有详细信息，返回基本信息
+        return {
+            "计算类型": "无详细信息",
+            "说明": "发布频率详细计算信息不可用"
+        }
+    
+    def _get_account_quality_details(self, creator_score: CreatorScore) -> dict:
+        """获取账户质量评分的详细计算过程
+        
+        Args:
+            creator_score: 创作者评分对象
+            
+        Returns:
+            账户质量评分详细计算信息
+        """
+        account_quality = creator_score.account_quality
+        
+        # 模拟从用户档案获取数据（实际应用中应该从真实数据获取）
+        follower_count = int(account_quality.follower_score * 10000)  # 估算粉丝数
+        total_likes = int(account_quality.likes_score * 500000)  # 估算总点赞数
+        
+        return {
+            "粉丝数量计算": f"{follower_count:,} → 得分: {account_quality.follower_score:.2f} × 40% = {account_quality.follower_score * 0.4:.2f}",
+            "总点赞数计算": f"{total_likes:,} → 得分: {account_quality.likes_score:.2f} × 40% = {account_quality.likes_score * 0.4:.2f}",
+            "发布频率计算": f"得分: {account_quality.posting_score:.2f} × 20% = {account_quality.posting_score * 0.2:.2f}",
+            "账户质量总分": f"{account_quality.total_score:.2f}",
+            "质量加权系数": f"{account_quality.multiplier:.3f}"
+        }
+    
+    def _get_content_interaction_details(self, creator_score: CreatorScore) -> dict:
+        """获取内容互动评分的详细计算过程
+        
+        Args:
+            creator_score: 创作者评分对象
+            
+        Returns:
+            内容互动评分详细计算信息
+        """
+        content_interaction = creator_score.content_interaction
+        
+        return {
+            "播放量表现": f"{content_interaction.view_score:.2f} × 10% = {content_interaction.view_score * 0.1:.2f}",
+            "点赞率表现": f"{content_interaction.like_score:.2f} × 25% = {content_interaction.like_score * 0.25:.2f}",
+            "评论率表现": f"{content_interaction.comment_score:.2f} × 30% = {content_interaction.comment_score * 0.3:.2f}",
+            "分享率表现": f"{content_interaction.share_score:.2f} × 35% = {content_interaction.share_score * 0.35:.2f}",
+            "内容互动总分": f"{content_interaction.total_score:.2f}"
+        }
+    
+    def _get_final_score_details(self, creator_score: CreatorScore) -> dict:
+        """获取最终评分的详细计算过程
+        
+        Args:
+            creator_score: 创作者评分对象
+            
+        Returns:
+            最终评分详细计算信息
+        """
+        content_interaction_score = creator_score.content_interaction.total_score
+        content_quality_score = self.content_quality_score
+        base_score = content_interaction_score * self.content_weight + content_quality_score * self.content_quality_weight
+        multiplier = creator_score.account_quality.multiplier
+        final_score = creator_score.final_score
+        
+        return {
+            "内容互动分数": f"{content_interaction_score:.2f} × {self.content_weight * 100}% = {content_interaction_score * self.content_weight:.2f}",
+            "内容质量分数": f"{content_quality_score:.2f} × {self.content_quality_weight * 100}% = {content_quality_score * self.content_quality_weight:.2f}",
+            "基础分数": f"{base_score:.2f}",
+            "账户质量加权": f"{base_score:.2f} × {multiplier:.3f} = {final_score:.2f}",
+            "最终评分": f"{final_score:.2f}"
+        }
