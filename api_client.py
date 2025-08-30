@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from config import Config
-from models import UserProfile, VideoMetrics, VideoDetail, TrendData
+from models import UserProfile, VideoMetrics, VideoDetail
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -450,12 +450,13 @@ class TiKhubAPIClient:
             
         return None
             
-    def fetch_user_videos_by_username(self, username: str, count: int = 5) -> List[VideoDetail]:
-        """通过用户名获取用户前N个作品
+    def fetch_user_videos_by_username(self, username: str, count: int = 5, keyword: str = None) -> List[VideoDetail]:
+        """通过用户名获取用户作品详情
         
         Args:
             username: TikTok用户名
-            count: 获取作品数量，默认5个
+            count: 获取作品数量，默认5个（当没有关键词时使用）
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
             
         Returns:
             视频详情列表
@@ -467,43 +468,9 @@ class TiKhubAPIClient:
                 logger.error(f"无法获取用户 {username} 的secUid")
                 return []
                 
-            # 使用secUid获取用户作品
-            return self.fetch_user_videos(sec_uid, count)
+            # 使用secUid获取用户作品详情
+            return self.fetch_user_top_videos(sec_uid, count, keyword)
             
         except Exception as e:
             logger.error(f"通过用户名 {username} 获取作品失败: {e}")
-            return []
-            
-    def fetch_trend_data(self, video_id: str, days: int = 14) -> List[TrendData]:
-        """获取趋势数据
-        
-        Args:
-            video_id: 视频ID
-            days: 天数
-            
-        Returns:
-            趋势数据列表
-        """
-        # 这里需要根据实际API调整
-        params = {
-            'video_id': video_id,
-            'days': days
-        }
-        
-        try:
-            data = self._make_request('/api/v1/tiktok/analytics/fetch_trend_data', params)
-            trends = data.get('trend_data', [])
-            
-            return [
-                TrendData(
-                    date=trend.get('date', ''),
-                    views=trend.get('views', 0),
-                    likes=trend.get('likes', 0),
-                    comments=trend.get('comments', 0),
-                    shares=trend.get('shares', 0)
-                )
-                for trend in trends
-            ]
-        except Exception as e:
-            logger.error(f"获取趋势数据失败: {e}")
             return []
