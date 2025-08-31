@@ -129,7 +129,20 @@ EOF
 
 # 配置Nginx反向代理
 echo "🌐 配置Nginx反向代理..."
-cat > /etc/nginx/sites-available/tiktok-creator-score << EOF
+
+# 检测Nginx配置目录结构
+if [ -d "/etc/nginx/sites-available" ]; then
+    # Debian/Ubuntu 系统
+    NGINX_CONFIG_FILE="/etc/nginx/sites-available/tiktok-creator-score"
+    NGINX_ENABLE_CMD="ln -sf /etc/nginx/sites-available/tiktok-creator-score /etc/nginx/sites-enabled/"
+else
+    # CentOS/RHEL 系统
+    NGINX_CONFIG_FILE="/etc/nginx/conf.d/tiktok-creator-score.conf"
+    NGINX_ENABLE_CMD=""  # CentOS不需要启用步骤
+fi
+
+echo "📝 创建Nginx配置文件: $NGINX_CONFIG_FILE"
+sudo tee $NGINX_CONFIG_FILE > /dev/null <<EOF
 server {
     listen 80;
     server_name _;
@@ -156,9 +169,14 @@ server {
 }
 EOF
 
-# 启用Nginx站点
-ln -sf /etc/nginx/sites-available/tiktok-creator-score /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+# 启用站点（仅适用于Debian/Ubuntu）
+if [ -n "$NGINX_ENABLE_CMD" ]; then
+    echo "🔗 启用Nginx站点配置..."
+    sudo bash -c "$NGINX_ENABLE_CMD"
+    sudo rm -f /etc/nginx/sites-enabled/default
+else
+    echo "✅ CentOS系统：配置文件已直接放置在conf.d目录"
+fi
 
 # 测试Nginx配置
 echo "🧪 测试Nginx配置..."
