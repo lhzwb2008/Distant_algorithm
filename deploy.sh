@@ -55,12 +55,30 @@ echo "📁 创建应用目录: $APP_DIR"
 mkdir -p $APP_DIR
 cd $APP_DIR
 
-# 如果当前目录有项目文件，复制到部署目录
-if [ -f "$(dirname "$0")/web_app.py" ]; then
+# 检查并复制项目文件
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+echo "📍 脚本目录: $SCRIPT_DIR"
+
+# 检查项目文件是否存在
+if [ -f "$SCRIPT_DIR/web_app.py" ] && [ -f "$SCRIPT_DIR/requirements.txt" ]; then
     echo "📋 复制项目文件..."
-    cp -r $(dirname "$0")/* $APP_DIR/
+    cp -r $SCRIPT_DIR/* $APP_DIR/
+    # 确保复制隐藏文件
+    if [ -f "$SCRIPT_DIR/.env.example" ]; then
+        cp $SCRIPT_DIR/.env.example $APP_DIR/
+    fi
+elif [ -f "./web_app.py" ] && [ -f "./requirements.txt" ]; then
+    echo "📋 从当前目录复制项目文件..."
+    cp -r ./* $APP_DIR/
+    # 确保复制隐藏文件
+    if [ -f "./.env.example" ]; then
+        cp ./.env.example $APP_DIR/
+    fi
 else
-    echo "❌ 未找到项目文件，请确保在项目根目录运行此脚本"
+    echo "❌ 未找到项目文件 (web_app.py, requirements.txt)"
+    echo "请确保在项目根目录运行此脚本，或将项目文件放在脚本同一目录"
+    echo "当前目录: $(pwd)"
+    echo "脚本目录: $SCRIPT_DIR"
     exit 1
 fi
 
