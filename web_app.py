@@ -6,6 +6,7 @@
 
 from flask import Flask, render_template, request, jsonify
 import logging
+import argparse
 from creator_score_calculator import CreatorScoreCalculator
 from api_client import TiKhubAPIClient
 
@@ -70,9 +71,17 @@ def calculate_score():
         }), 500
 
 if __name__ == '__main__':
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='TikTok创作者评分系统 Web服务')
+    parser.add_argument('--port', type=int, default=8080, help='Web服务端口 (默认: 8080)')
+    parser.add_argument('--host', type=str, default='0.0.0.0', help='Web服务主机 (默认: 0.0.0.0)')
+    parser.add_argument('--debug', action='store_true', help='启用调试模式')
+    args = parser.parse_args()
+    
     print("\n🚀 TikTok创作者评分系统 Web界面")
-    print("📱 访问地址: http://localhost:8080")
+    print(f"📱 访问地址: http://localhost:{args.port}")
+    print(f"🌐 外部访问: http://{args.host}:{args.port}")
     print("💡 在浏览器中打开上述地址即可使用")
     print("\n按 Ctrl+C 停止服务\n")
     
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    app.run(debug=args.debug, host=args.host, port=args.port)
