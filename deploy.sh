@@ -15,13 +15,39 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# 检测操作系统类型
+if [ -f /etc/redhat-release ]; then
+    OS_TYPE="centos"
+    echo "🔍 检测到CentOS/RHEL系统"
+elif [ -f /etc/debian_version ]; then
+    OS_TYPE="debian"
+    echo "🔍 检测到Debian/Ubuntu系统"
+else
+    echo "❌ 不支持的操作系统"
+    exit 1
+fi
+
 # 更新系统包
 echo "📦 更新系统包..."
-apt update && apt upgrade -y
+if [ "$OS_TYPE" = "centos" ]; then
+    yum update -y
+    # 安装EPEL仓库
+    yum install -y epel-release
+else
+    apt update && apt upgrade -y
+fi
 
-# 安装Python3和pip
+# 安装Python3和相关工具
 echo "🐍 安装Python3和相关工具..."
-apt install -y python3 python3-pip python3-venv git curl nginx
+if [ "$OS_TYPE" = "centos" ]; then
+    yum install -y python3 python3-pip python3-venv git curl nginx net-tools
+    # 确保pip3可用
+    if ! command -v pip3 &> /dev/null; then
+        yum install -y python3-pip
+    fi
+else
+    apt install -y python3 python3-pip python3-venv git curl nginx net-tools
+fi
 
 # 创建应用目录
 APP_DIR="/opt/tiktok-creator-score"
@@ -129,12 +155,30 @@ systemctl enable tiktok-creator-score
 systemctl enable nginx
 systemctl restart nginx
 
-# 配置防火墙（如果ufw存在）
-if command -v ufw &> /dev/null; then
-    echo "🔥 配置防火墙..."
-    ufw allow 80/tcp
-    ufw allow 22/tcp
-    echo "y" | ufw enable
+# 配置防火墙
+echo "🔥 配置防火墙..."
+if [ "$OS_TYPE" = "centos" ]; then
+    # CentOS使用firewalld
+    if command -v firewall-cmd &> /dev/null; then
+        systemctl enable firewalld
+        systemctl start firewalld
+        firewall-cmd --permanent --add-service=http
+        firewall-cmd --permanent --add-service=ssh
+        firewall-cmd --reload
+        echo "✅ firewalld防火墙配置完成"
+    else
+        echo "⚠️  firewalld未安装，跳过防火墙配置"
+    fi
+else
+    # Debian/Ubuntu使用ufw
+    if command -v ufw &> /dev/null; then
+        ufw allow 80/tcp
+        ufw allow 22/tcp
+        echo "y" | ufw enable
+        echo "✅ ufw防火墙配置完成"
+    else
+        echo "⚠️  ufw未安装，跳过防火墙配置"
+    fi
 fi
 
 echo "✅ 部署完成！"

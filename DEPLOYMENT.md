@@ -4,11 +4,19 @@
 
 ## 📋 系统要求
 
-- **操作系统**: Ubuntu 18.04+ / Debian 9+ / CentOS 7+
+- **操作系统**: 
+  - Ubuntu 18.04+ / Debian 9+
+  - CentOS 7+ / RHEL 7+ / Rocky Linux 8+
 - **内存**: 最少1GB RAM
 - **存储**: 最少2GB可用空间
 - **网络**: 需要访问外网（用于安装依赖包）
 - **权限**: 需要root权限
+
+### 系统兼容性说明
+
+脚本会自动检测操作系统类型：
+- **Debian/Ubuntu系统**: 使用`apt`包管理器和`ufw`防火墙
+- **CentOS/RHEL系统**: 使用`yum`包管理器和`firewalld`防火墙
 
 ## 🚀 快速部署
 
@@ -191,9 +199,12 @@ sudo crontab -e
 
 2. **端口被占用**
    ```bash
-   # 检查端口占用
+   # 检查端口占用 (使用netstat或ss)
    sudo netstat -tlnp | grep :8080
    sudo netstat -tlnp | grep :80
+   # 或者使用ss命令
+   sudo ss -tlnp | grep :8080
+   sudo ss -tlnp | grep :80
    ```
 
 3. **权限问题**
@@ -208,6 +219,43 @@ sudo crontab -e
    cd /opt/tiktok-creator-score
    source venv/bin/activate
    pip install -r requirements.txt
+   ```
+
+5. **CentOS系统特有问题**
+   
+   **Python3不可用**:
+   ```bash
+   # CentOS 7需要安装Python3
+   sudo yum install -y python3 python3-pip
+   # 或者从EPEL仓库安装
+   sudo yum install -y epel-release
+   sudo yum install -y python36 python36-pip
+   ```
+   
+   **防火墙配置问题**:
+   ```bash
+   # 检查firewalld状态
+   sudo systemctl status firewalld
+   
+   # 手动配置防火墙
+   sudo firewall-cmd --permanent --add-service=http
+   sudo firewall-cmd --permanent --add-service=ssh
+   sudo firewall-cmd --reload
+   
+   # 查看防火墙规则
+   sudo firewall-cmd --list-all
+   ```
+   
+   **SELinux问题**:
+   ```bash
+   # 检查SELinux状态
+   sestatus
+   
+   # 临时禁用SELinux（如果遇到权限问题）
+   sudo setenforce 0
+   
+   # 永久禁用SELinux（编辑配置文件）
+   sudo sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config
    ```
 
 ### 重新部署

@@ -141,16 +141,32 @@ show_status() {
     fi
     
     # 端口监听状态
-    if netstat -tlnp | grep -q ":80 "; then
-        print_success "端口80: 正在监听"
+    if command -v netstat &> /dev/null; then
+        if netstat -tlnp | grep -q ":80 "; then
+            print_success "端口80: 正在监听"
+        else
+            print_warning "端口80: 未监听"
+        fi
+        
+        if netstat -tlnp | grep -q ":8080 "; then
+            print_success "端口8080: 正在监听"
+        else
+            print_warning "端口8080: 未监听"
+        fi
+    elif command -v ss &> /dev/null; then
+        if ss -tlnp | grep -q ":80 "; then
+            print_success "端口80: 正在监听"
+        else
+            print_warning "端口80: 未监听"
+        fi
+        
+        if ss -tlnp | grep -q ":8080 "; then
+            print_success "端口8080: 正在监听"
+        else
+            print_warning "端口8080: 未监听"
+        fi
     else
-        print_warning "端口80: 未监听"
-    fi
-    
-    if netstat -tlnp | grep -q ":8080 "; then
-        print_success "端口8080: 正在监听"
-    else
-        print_warning "端口8080: 未监听"
+        print_warning "无法检查端口状态 (netstat/ss命令不可用)"
     fi
     
     echo ""
