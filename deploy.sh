@@ -49,42 +49,46 @@ else
     apt install -y python3 python3-pip python3-venv git curl nginx net-tools
 fi
 
-# 创建应用目录
-APP_DIR="/opt/tiktok-creator-score"
-echo "📁 创建应用目录: $APP_DIR"
-mkdir -p $APP_DIR
-cd $APP_DIR
-
-# 检查并复制项目文件
+# 检查项目文件
+echo "🔍 检查项目文件..."
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-echo "📍 脚本目录: $SCRIPT_DIR"
+CURRENT_DIR="$(pwd)"
 
-# 检查项目文件是否存在
+# 确定项目目录
 if [ -f "$SCRIPT_DIR/web_app.py" ] && [ -f "$SCRIPT_DIR/requirements.txt" ]; then
-    echo "📋 复制项目文件..."
-    cp -r $SCRIPT_DIR/* $APP_DIR/
-    # 确保复制隐藏文件
-    if [ -f "$SCRIPT_DIR/.env.example" ]; then
-        cp $SCRIPT_DIR/.env.example $APP_DIR/
-    fi
-elif [ -f "./web_app.py" ] && [ -f "./requirements.txt" ]; then
-    echo "📋 从当前目录复制项目文件..."
-    cp -r ./* $APP_DIR/
-    # 确保复制隐藏文件
-    if [ -f "./.env.example" ]; then
-        cp ./.env.example $APP_DIR/
-    fi
+    PROJECT_DIR="$SCRIPT_DIR"
+    echo "✅ 在脚本目录找到项目文件: $PROJECT_DIR"
+elif [ -f "$CURRENT_DIR/web_app.py" ] && [ -f "$CURRENT_DIR/requirements.txt" ]; then
+    PROJECT_DIR="$CURRENT_DIR"
+    echo "✅ 在当前目录找到项目文件: $PROJECT_DIR"
 else
     echo "❌ 未找到项目文件 (web_app.py, requirements.txt)"
-    echo "请确保在项目根目录运行此脚本，或将项目文件放在脚本同一目录"
-    echo "当前目录: $(pwd)"
-    echo "脚本目录: $SCRIPT_DIR"
+    echo "   脚本目录: $SCRIPT_DIR"
+    echo "   当前目录: $CURRENT_DIR"
+    echo "   请确保在项目根目录运行此脚本"
     exit 1
 fi
 
+# 切换到项目目录
+echo "📁 切换到项目目录: $PROJECT_DIR"
+cd "$PROJECT_DIR"
+
 # 创建Python虚拟环境
 echo "🔧 创建Python虚拟环境..."
-python3 -m venv venv
+if python3 -m venv venv 2>/dev/null; then
+    echo "✅ 使用venv创建虚拟环境成功"
+elif python3 -m virtualenv venv 2>/dev/null; then
+    echo "✅ 使用virtualenv创建虚拟环境成功"
+else
+    echo "⚠️  venv模块不可用，安装virtualenv..."
+    if [ "$OS_TYPE" = "centos" ]; then
+        yum install -y python3-virtualenv || pip3 install virtualenv
+    else
+        apt install -y python3-virtualenv || pip3 install virtualenv
+    fi
+    python3 -m virtualenv venv
+    echo "✅ 使用virtualenv创建虚拟环境成功"
+fi
 source venv/bin/activate
 
 # 安装Python依赖
@@ -97,16 +101,11 @@ else
     pip install flask requests python-dotenv
 fi
 
-# 创建系统服务用户
-echo "👤 创建系统服务用户..."
-if ! id "tiktok-score" &>/dev/null; then
-    useradd --system --shell /bin/false --home $APP_DIR tiktok-score
-fi
-
 # 设置文件权限
 echo "🔐 设置文件权限..."
-chown -R tiktok-score:tiktok-score $APP_DIR
-chmod +x $APP_DIR/start.sh
+if [ -f "start.sh" ]; then
+    chmod +x start.sh
+fi
 
 # 创建systemd服务文件
 echo "⚙️  创建systemd服务..."
@@ -117,11 +116,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=tiktok-score
-Group=tiktok-score
-WorkingDirectory=$APP_DIR
-Environment=PATH=$APP_DIR/venv/bin
-ExecStart=$APP_DIR/venv/bin/python web_app.py --port=8080
+User=root
+WorkingDirectory=$PROJECT_DIR
+Environment=PATH=$PROJECT_DIR/venv/bin
+ExecStart=$PROJECT_DIR/venv/bin/python web_app.py --port=8080
 Restart=always
 RestartSec=3
 
@@ -151,7 +149,7 @@ server {
     
     # 静态文件缓存
     location /static/ {
-        alias $APP_DIR/static/;
+        alias $PROJECT_DIR/static/;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -202,7 +200,7 @@ fi
 echo "✅ 部署完成！"
 echo ""
 echo "📋 部署信息:"
-echo "   应用目录: $APP_DIR"
+echo "   项目目录: $PROJECT_DIR"
 echo "   服务名称: tiktok-creator-score"
 echo "   Web端口: 80 (通过Nginx代理到8080)"
 echo ""

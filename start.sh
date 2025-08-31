@@ -6,6 +6,11 @@
 
 set -e  # 遇到错误立即退出
 
+# 配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_NAME="tiktok-creator-score"
+PORT=8080
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -41,7 +46,7 @@ check_root() {
 
 # 检查服务状态
 check_service_status() {
-    if systemctl is-active --quiet tiktok-creator-score; then
+    if systemctl is-active --quiet $SERVICE_NAME; then
         return 0  # 服务正在运行
     else
         return 1  # 服务未运行
@@ -61,11 +66,14 @@ check_nginx_status() {
 start_service() {
     print_info "启动TikTok创作者评分系统..."
     
+    # 确保在项目目录
+    cd "$SCRIPT_DIR"
+    
     # 启动应用服务
     if check_service_status; then
         print_warning "应用服务已在运行中"
     else
-        systemctl start tiktok-creator-score
+        systemctl start $SERVICE_NAME
         sleep 2
         if check_service_status; then
             print_success "应用服务启动成功"
@@ -97,7 +105,7 @@ start_service() {
 stop_service() {
     print_info "停止TikTok创作者评分系统..."
     
-    systemctl stop tiktok-creator-score
+    systemctl stop $SERVICE_NAME
     systemctl stop nginx
     
     print_success "服务已停止"
@@ -107,7 +115,10 @@ stop_service() {
 restart_service() {
     print_info "重启TikTok创作者评分系统..."
     
-    systemctl restart tiktok-creator-score
+    # 确保在项目目录
+    cd "$SCRIPT_DIR"
+    
+    systemctl restart $SERVICE_NAME
     systemctl restart nginx
     
     sleep 3
@@ -148,10 +159,10 @@ show_status() {
             print_warning "端口80: 未监听"
         fi
         
-        if netstat -tlnp | grep -q ":8080 "; then
-            print_success "端口8080: 正在监听"
+        if netstat -tlnp | grep -q ":$PORT "; then
+            print_success "端口$PORT: 正在监听"
         else
-            print_warning "端口8080: 未监听"
+            print_warning "端口$PORT: 未监听"
         fi
     elif command -v ss &> /dev/null; then
         if ss -tlnp | grep -q ":80 "; then
@@ -160,15 +171,20 @@ show_status() {
             print_warning "端口80: 未监听"
         fi
         
-        if ss -tlnp | grep -q ":8080 "; then
-            print_success "端口8080: 正在监听"
+        if ss -tlnp | grep -q ":$PORT "; then
+            print_success "端口$PORT: 正在监听"
         else
-            print_warning "端口8080: 未监听"
+            print_warning "端口$PORT: 未监听"
         fi
     else
         print_warning "无法检查端口状态 (netstat/ss命令不可用)"
     fi
     
+    echo ""
+    print_info "=== 应用信息 ==="
+    echo "📁 项目目录: $SCRIPT_DIR"
+    echo "🔧 服务名称: $SERVICE_NAME"
+    echo "🔌 应用端口: $PORT"
     echo ""
     print_info "=== 访问信息 ==="
     echo "🌐 Web访问地址: http://$(hostname -I | awk '{print $1}')"
@@ -179,7 +195,7 @@ show_status() {
 # 显示日志
 show_logs() {
     print_info "显示应用服务日志 (按Ctrl+C退出)..."
-    journalctl -u tiktok-creator-score -f
+    journalctl -u $SERVICE_NAME -f
 }
 
 # 显示帮助信息

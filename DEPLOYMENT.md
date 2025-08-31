@@ -43,14 +43,15 @@ chmod +x deploy.sh start.sh
 sudo bash deploy.sh
 ```
 
+**注意：** 部署脚本会直接在当前项目目录创建虚拟环境和配置服务，无需复制文件到其他位置。
+
 部署脚本将自动完成以下操作：
 - ✅ 更新系统包
 - ✅ 安装Python3、pip、nginx等依赖
-- ✅ 创建应用目录 `/opt/tiktok-creator-score`
-- ✅ 设置Python虚拟环境
+- ✅ 在当前项目目录设置Python虚拟环境
 - ✅ 安装项目依赖
 - ✅ 创建系统服务用户
-- ✅ 配置systemd服务
+- ✅ 配置systemd服务（直接在项目目录运行）
 - ✅ 配置Nginx反向代理（80端口）
 - ✅ 配置防火墙规则
 
@@ -69,6 +70,9 @@ sudo systemctl start tiktok-creator-score
 ### 使用一键管理脚本
 
 ```bash
+# 在项目目录中运行
+cd /path/to/your/project
+
 # 启动服务
 sudo bash start.sh start
 
@@ -144,10 +148,11 @@ sudo tail -f /var/log/nginx/error.log
 
 ## 🔧 配置文件位置
 
-- **应用目录**: `/opt/tiktok-creator-score`
+- **项目目录**: 您运行部署脚本的目录（如 `/home/user/tiktok-creator-score`）
+- **虚拟环境**: `项目目录/venv`
 - **systemd服务文件**: `/etc/systemd/system/tiktok-creator-score.service`
 - **Nginx配置文件**: `/etc/nginx/sites-available/tiktok-creator-score`
-- **环境配置**: `/opt/tiktok-creator-score/.env`
+- **环境配置**: `项目目录/.env`
 
 ## 🔒 安全配置
 
@@ -216,7 +221,7 @@ sudo crontab -e
 4. **依赖安装失败**
    ```bash
    # 手动安装依赖
-   cd /opt/tiktok-creator-score
+   cd /path/to/your/project
    source venv/bin/activate
    pip install -r requirements.txt
    ```
@@ -267,13 +272,13 @@ sudo crontab -e
 sudo bash start.sh stop
 
 # 备份配置（可选）
-sudo cp /opt/tiktok-creator-score/.env /tmp/backup.env
+sudo cp .env /tmp/backup.env
 
 # 重新运行部署脚本
 sudo bash deploy.sh
 
 # 恢复配置（如果有备份）
-sudo cp /tmp/backup.env /opt/tiktok-creator-score/.env
+sudo cp /tmp/backup.env .env
 
 # 启动服务
 sudo bash start.sh start
