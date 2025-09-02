@@ -218,8 +218,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 TikTok创作者评分</h1>
-            <p>输入用户名和关键词，获取创作者质量评分</p>
+            <h1>🎯 TikTok创作者评分 2.0</h1>
+            <p>新算法：40%峰值表现 + 40%近期状态 + 20%整体水平</p>
+            <p style="font-size: 14px; color: #888; margin-top: 5px;">基于最近100条视频的智能评分系统</p>
         </div>
         
         <form id="scoreForm">
@@ -313,18 +314,38 @@
                             <h4>📊 详细计算过程</h4>
                             
                             <div class="breakdown-section">
-                                <h5>🏆 最终评分计算</h5>
+                                <h5>🏆 新算法最终评分计算</h5>
                                 <div class="breakdown-item">
-                                    <span class="label">计算公式:</span>
-                                    <span class="value">(内容互动×65% + 内容质量×35%) × 账户质量加权</span>
+                                    <span class="label">算法说明:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.算法说明}</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">内容质量固定分数:</span>
-                                    <span class="value">${breakdown.权重配置.内容质量固定分数}分</span>
+                                    <span class="label">视频数据:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">峰值表现:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.峰值表现 || 'N/A'}</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">近期状态:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.近期状态 || 'N/A'}</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">整体水平:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.整体水平 || 'N/A'}</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">基础分数:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.基础分数}分</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">账户质量加权:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.账户质量加权}</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">最终评分:</span>
-                                    <span class="value">${breakdown.最终评分}分</span>
+                                    <span class="value">${breakdown.最终评分详细计算.最终评分}分</span>
                                 </div>
                             </div>
                             
@@ -388,7 +409,7 @@
                                     <span class="value">${breakdown.内容互动评分.播放量得分}/100</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">点赞得分 (权重25%):</span>
+                                    <span class="label">点赞得分 (权重15%):</span>
                                     <span class="value">${breakdown.内容互动评分.点赞得分}/100</span>
                                 </div>
                                 <div class="breakdown-item">
@@ -396,18 +417,23 @@
                                     <span class="value">${breakdown.内容互动评分.评论得分}/100</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">分享得分 (权重35%):</span>
+                                    <span class="label">分享得分 (权重30%):</span>
                                     <span class="value">${breakdown.内容互动评分.分享得分}/100</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">保存得分 (权重15%):</span>
+                                    <span class="value">${breakdown.内容互动评分.保存得分 || 'N/A'}/100</span>
                                 </div>
                                 
                                 <!-- 内容互动评分详细计算过程 -->
                                 <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #f0f8e8; border-radius: 6px; border-left: 4px solid #28a745;">
-                                    <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">📊 内容互动评分计算详情（基于累计值）:</div>
+                                    <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">📊 内容互动评分计算详情（基于最近100条视频）:</div>
                                     <div style="font-size: 14px; line-height: 1.6;">
                                         <div><strong>播放量表现:</strong> ${breakdown.内容互动评分.详细计算过程.播放量表现}</div>
                                         <div><strong>点赞率表现:</strong> ${breakdown.内容互动评分.详细计算过程.点赞率表现}</div>
                                         <div><strong>评论率表现:</strong> ${breakdown.内容互动评分.详细计算过程.评论率表现}</div>
                                         <div><strong>分享率表现:</strong> ${breakdown.内容互动评分.详细计算过程.分享率表现}</div>
+                                        <div><strong>保存率表现:</strong> ${breakdown.内容互动评分.详细计算过程.保存率表现 || 'N/A'}</div>
                                         <div><strong>内容互动总分:</strong> ${breakdown.内容互动评分.详细计算过程.内容互动总分}</div>
                                     </div>
                                 </div>
@@ -426,22 +452,33 @@
                             </div>
                             
                             <div class="breakdown-section">
-                                <h5>🧮 最终评分计算</h5>
+                                <h5>🧮 新算法详细说明</h5>
                                 <div class="breakdown-item">
-                                    <span class="label">计算公式:</span>
-                                    <span class="value">TikTok Creator Score = (内容互动数据 × 65% + 内容质量 × 35%) × 账户质量加权</span>
+                                    <span class="label">算法说明:</span>
+                                    <span class="value">${breakdown.最终评分详细计算.算法说明}</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="label">单视频评分公式:</span>
+                                    <span class="value">每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">内容质量固定分数:</span>
                                     <span class="value">${breakdown.权重配置.内容质量固定分数}分</span>
                                 </div>
+                                <div class="breakdown-item">
+                                    <span class="label">内容互动权重配置:</span>
+                                    <span class="value">播放10% + 点赞15% + 评论30% + 分享30% + 保存15%</span>
+                                </div>
                                 
-                                <!-- 最终评分详细计算过程 -->
+                                <!-- 新算法详细计算过程 -->
                                 <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
-                                    <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📊 最终评分计算详情:</div>
+                                    <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📊 新算法计算详情:</div>
                                     <div style="font-size: 14px; line-height: 1.6;">
-                                        <div><strong>内容互动分数:</strong> ${breakdown.最终评分详细计算.内容互动分数}</div>
-                                        <div><strong>内容质量分数:</strong> ${breakdown.最终评分详细计算.内容质量分数}</div>
+                                        <div><strong>算法说明:</strong> ${breakdown.最终评分详细计算.算法说明}</div>
+                                        <div><strong>视频数据:</strong> ${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</div>
+                                        ${breakdown.最终评分详细计算.峰值表现 ? `<div><strong>峰值表现:</strong> ${breakdown.最终评分详细计算.峰值表现}</div>` : ''}
+                                        ${breakdown.最终评分详细计算.近期状态 ? `<div><strong>近期状态:</strong> ${breakdown.最终评分详细计算.近期状态}</div>` : ''}
+                                        ${breakdown.最终评分详细计算.整体水平 ? `<div><strong>整体水平:</strong> ${breakdown.最终评分详细计算.整体水平}</div>` : ''}
                                         <div><strong>基础分数:</strong> ${breakdown.最终评分详细计算.基础分数}</div>
                                         <div><strong>账户质量加权:</strong> ${breakdown.最终评分详细计算.账户质量加权}</div>
                                         <div><strong>最终评分:</strong> ${breakdown.最终评分详细计算.最终评分}</div>
