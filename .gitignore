@@ -178,6 +178,7 @@ Desktop.ini
 
 # Project specific
 *.log
+*.pid
 test_results/
 temp/
 tmp/
