@@ -294,13 +294,21 @@ class TiKhubAPIClient:
             # 如果有关键词，先筛选匹配的视频
             if keyword:
                 filtered_videos = []
-                for video in videos:
-                    desc = video.get('desc', '').lower()
-                    if keyword.lower() in desc:
+                logger.info(f"🔍 开始筛选包含关键词 '{keyword}' 的视频...")
+                for i, video in enumerate(videos, 1):
+                    desc = video.get('desc', '')
+                    video_id = video.get('id', 'unknown')
+                    if keyword.lower() in desc.lower():
                         filtered_videos.append(video)
-                        logger.info(f"找到匹配关键词 '{keyword}' 的视频: {desc[:50]}...")
+                        logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
+                        logger.info(f"   📹 视频ID: {video_id}")
+                        logger.info(f"   📝 完整描述: {desc}")
+                    else:
+                        logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
+                        logger.info(f"   📹 视频ID: {video_id}")
+                        logger.info(f"   📝 完整描述: {desc}")
                 videos_to_process = filtered_videos
-                logger.info(f"关键词 '{keyword}' 匹配到 {len(filtered_videos)} 个视频")
+                logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(videos)} 个视频匹配")
             else:
                 videos_to_process = videos[:count]
             
@@ -332,7 +340,12 @@ class TiKhubAPIClient:
                         duration=video.get('video', {}).get('duration', 0)
                     )
                     video_details.append(video_detail)
-                    logger.info(f"成功解析视频 {video_detail.video_id} (播放: {view_count}, 点赞: {like_count})")
+                    # 记录详细的视频数据
+                    logger.info(f"成功解析视频 {video_detail.video_id}")
+                    logger.info(f"  📺 播放: {view_count:,}, 👍 点赞: {like_count:,}, 💬 评论: {comment_count:,}, 🔄 分享: {share_count:,}")
+                    logger.info(f"  📝 完整描述: {video_detail.desc}")
+                    if collect_count > 0:
+                        logger.info(f"  ⭐ 收藏: {collect_count:,}")
                 except Exception as e:
                     logger.error(f"解析视频数据失败: {e}")
                     continue
@@ -343,6 +356,169 @@ class TiKhubAPIClient:
         except Exception as e:
             logger.error(f"获取用户视频列表失败: {e}")
             return []
+    
+    def fetch_user_videos_last_3_months(self, user_id: str, max_pages: int = 20, keyword: str = None) -> List[VideoDetail]:
+        """获取用户最近三个月的所有视频（支持分页）
+        
+        Args:
+            user_id: 用户ID (secUid)
+            max_pages: 最大分页数，防止无限循环
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            
+        Returns:
+            最近三个月的视频详情列表
+        """
+        from datetime import datetime, timedelta
+        
+        if keyword:
+            logger.info(f"开始获取用户 {user_id} 最近三个月包含关键词 '{keyword}' 的所有作品（支持分页）")
+        else:
+            logger.info(f"开始获取用户 {user_id} 最近三个月的所有作品（支持分页）")
+        
+        # 计算三个月前的时间
+        now = datetime.now()
+        three_months_ago = now - timedelta(days=90)  # 约3个月
+        logger.info(f"时间范围: {three_months_ago.strftime('%Y-%m-%d')} 至 {now.strftime('%Y-%m-%d')}")
+        
+        all_videos = []
+        cursor = 0
+        page = 1
+        videos_per_page = 20  # 每页获取20个视频
+        
+        while page <= max_pages:
+            logger.info(f"正在获取第 {page} 页数据 (cursor: {cursor})...")
+            
+            # 设置分页参数（与工作的API调用保持一致）
+            params = {
+                'secUid': user_id,
+                'count': videos_per_page
+            }
+            
+            # 只有在非第一页时才添加cursor参数
+            if cursor > 0:
+                params['cursor'] = cursor
+            
+            try:
+                # 调用API获取当前页数据
+                data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
+                
+                # 检查API响应状态（与现有API调用保持一致）
+                if not data or data.get('statusCode', 1) != 0:
+                    logger.warning(f"第 {page} 页API响应异常: {data.get('statusMsg', 'Unknown error') if data else 'No data'}")
+                    break
+                
+                # 获取视频列表 - 使用与现有代码相同的逻辑
+                videos = []
+                
+                # 尝试格式1: data.itemList (最常见的格式)
+                if 'itemList' in data:
+                    videos = data['itemList']
+                    logger.debug(f"第 {page} 页使用格式1获取到 {len(videos)} 个视频")
+                # 尝试格式2: data.data.itemList
+                elif 'data' in data and 'itemList' in data['data']:
+                    videos = data['data']['itemList']
+                    logger.debug(f"第 {page} 页使用格式2获取到 {len(videos)} 个视频")
+                # 尝试格式3: data.aweme_list
+                elif 'aweme_list' in data:
+                    videos = data['aweme_list']
+                    logger.debug(f"第 {page} 页使用格式3获取到 {len(videos)} 个视频")
+                else:
+                    logger.warning(f"第 {page} 页未找到视频数据，尝试的字段: itemList, data.itemList, aweme_list")
+                    logger.debug(f"第 {page} 页API响应键: {list(data.keys()) if data else 'None'}")
+                
+                if not videos:
+                    logger.info(f"第 {page} 页没有更多视频，停止分页")
+                    break
+                
+                logger.info(f"第 {page} 页获取到 {len(videos)} 个视频")
+                
+                # 处理当前页的视频
+                page_videos = []
+                videos_outside_range = 0
+                
+                for video in videos:
+                    try:
+                        # 使用与现有代码相同的字段提取逻辑
+                        video_id = video.get('id', '')
+                        create_time = datetime.fromtimestamp(video.get('createTime', 0))
+                        
+                        # 检查视频是否在三个月范围内
+                        if create_time < three_months_ago:
+                            videos_outside_range += 1
+                            logger.info(f"视频 {video_id} 创建时间 {create_time.strftime('%Y-%m-%d')} 超出三个月范围，跳过")
+                            continue
+                        
+                        # 关键词筛选（如果提供了关键词）
+                        if keyword:
+                            desc = video.get('desc', '')
+                            if keyword.lower() not in desc.lower():
+                                logger.info(f"❌ 视频 {video_id} 不匹配关键词 '{keyword}':")
+                                logger.info(f"   📝 完整描述: {desc}")
+                                continue
+                            else:
+                                logger.info(f"✅ 视频 {video_id} 匹配关键词 '{keyword}':")
+                                logger.info(f"   📝 完整描述: {desc}")
+                        
+                        # 从基础API响应获取数据（与现有代码保持一致）
+                        base_stats = video.get('stats', {})
+                        
+                        view_count = base_stats.get('playCount', 0)
+                        like_count = base_stats.get('diggCount', 0)
+                        comment_count = base_stats.get('commentCount', 0)
+                        share_count = base_stats.get('shareCount', 0)
+                        collect_count = base_stats.get('collectCount', 0)
+                        
+                        video_detail = VideoDetail(
+                            video_id=video_id,
+                            desc=video.get('desc', ''),
+                            create_time=create_time,
+                            author_id=video.get('author', {}).get('uniqueId', ''),  # 与现有代码保持一致
+                            view_count=view_count,
+                            like_count=like_count,
+                            comment_count=comment_count,
+                            share_count=share_count,
+                            download_count=base_stats.get('downloadCount', 0),  # 与现有代码保持一致
+                            collect_count=collect_count,
+                            duration=video.get('video', {}).get('duration', 0)
+                        )
+                        page_videos.append(video_detail)
+                        
+                        logger.info(f"成功解析视频 {video_detail.video_id} (创建时间: {create_time.strftime('%Y-%m-%d')})")
+                        
+                    except Exception as e:
+                        logger.error(f"解析视频数据失败: {e}")
+                        continue
+                
+                all_videos.extend(page_videos)
+                logger.info(f"第 {page} 页: 解析成功 {len(page_videos)} 个视频，跳过 {videos_outside_range} 个超出范围的视频")
+                
+                # 如果当前页有很多视频超出时间范围，可能后续页面都超出范围了
+                if videos_outside_range > len(page_videos):
+                    logger.info("当前页超出时间范围的视频较多，可能已到达三个月边界，停止分页")
+                    break
+                
+                # 更新分页参数（与现有API保持兼容）
+                has_more = data.get('hasMore', False)
+                if not has_more:
+                    logger.info("API返回 hasMore=false，没有更多数据")
+                    break
+                
+                # 更新cursor用于下一页
+                new_cursor = data.get('cursor', cursor + videos_per_page)
+                # 确保cursor是整数类型
+                cursor = int(new_cursor) if new_cursor is not None else cursor + videos_per_page
+                page += 1
+                
+                # 短暂延迟避免请求过快
+                import time
+                time.sleep(0.5)
+                
+            except Exception as e:
+                logger.error(f"获取第 {page} 页数据失败: {e}")
+                break
+        
+        logger.info(f"分页获取完成: 共获取 {len(all_videos)} 个最近三个月的视频（共 {page-1} 页）")
+        return all_videos
         
     def get_secuid_from_username(self, username: str) -> Optional[str]:
         """通过用户名获取secUid

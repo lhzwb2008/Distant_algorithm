@@ -179,18 +179,16 @@ class CreatorScoreCalculator:
             print(f"✅ 使用secUid: {sec_uid[:20]}...")
             
             # 2. 获取用户作品
-            # 维度1（发布频率）需要前20个作品，维度2（内容互动）需要关键词匹配作品
+            # 维度1（发布频率）和维度2（内容互动）都基于最近三个月的数据
             if keyword:
-                print(f"📡 API调用: 获取用户包含关键词 '{keyword}' 的视频")
-                keyword_videos = self.api_client.fetch_user_top_videos(sec_uid, keyword=keyword)
-                print(f"📡 API调用: 获取用户前20个作品（用于发布频率计算）")
-                all_videos = self.api_client.fetch_user_top_videos(sec_uid, count=20)  # 获取前20个作品用于发布频率计算
-                video_details = keyword_videos  # 用于内容互动计算
-                all_video_details = all_videos  # 用于发布频率计算
+                print(f"📡 API调用: 获取用户最近三个月包含关键词 '{keyword}' 的所有作品")
+                all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid, keyword=keyword)  # 获取最近三个月包含关键词的所有作品
+                video_details = all_video_details  # 用于内容互动计算（关键词匹配的视频）
             else:
-                print(f"📡 API调用: 获取用户视频列表 (前{min(video_count, 20)}个)")
-                video_details = self.api_client.fetch_user_top_videos(sec_uid, min(video_count, 20))
-                all_video_details = video_details  # 没有关键词时，两者相同
+                print(f"📡 API调用: 获取用户最近三个月的所有视频列表")
+                all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid)  # 获取最近三个月的所有作品
+                # 如果没有关键词，则从三个月数据中取前面的视频用于内容互动计算
+                video_details = all_video_details[:min(video_count, 20)]  # 用于内容互动计算的视频数量仍有限制
             
             if not video_details:
                 print(f"❌ 用户 {user_id} 没有找到任何视频数据")
@@ -233,7 +231,7 @@ class CreatorScoreCalculator:
             print(f"📋 账户质量评分包含三个维度:")
             print(f"   • 粉丝数量评分 (权重40%)")
             print(f"   • 总点赞数评分 (权重40%)")
-            print(f"   • 发布频率评分 (权重20%) - 基于所有作品")
+            print(f"   • 发布频率评分 (权重20%) - 基于最近三个月的所有作品")
             
             account_quality = self.account_calculator.calculate_account_quality(
                 user_profile, all_video_details
