@@ -244,16 +244,20 @@ class TiKhubAPIClient:
         """
         if keyword:
             logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品")
-            # 当有关键词时，获取更多视频以便筛选
-            api_count = 50  # 获取更多视频用于筛选
+            # API文档明确说明count不可变更，固定为20
+            api_count = 20
         else:
             logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
-            api_count = count
+            # API文档明确说明count不可变更，固定为20
+            api_count = 20
         
-        # 直接调用API获取用户视频列表
+        # 直接调用API获取用户视频列表（根据API文档完整配置）
         params = {
             'secUid': user_id,
-            'count': api_count
+            'cursor': 0,
+            'count': api_count,
+            'coverFormat': 2,
+            'post_item_list_request_type': 0
         }
         
         try:
@@ -388,15 +392,14 @@ class TiKhubAPIClient:
         while page <= max_pages:
             logger.info(f"正在获取第 {page} 页数据 (cursor: {cursor})...")
             
-            # 设置分页参数（与工作的API调用保持一致）
+            # 设置分页参数（根据API文档完整配置）
             params = {
                 'secUid': user_id,
-                'count': videos_per_page
+                'cursor': cursor,
+                'count': videos_per_page,
+                'coverFormat': 2,
+                'post_item_list_request_type': 0
             }
-            
-            # 只有在非第一页时才添加cursor参数
-            if cursor > 0:
-                params['cursor'] = cursor
             
             try:
                 # 调用API获取当前页数据
@@ -650,3 +653,24 @@ class TiKhubAPIClient:
         except Exception as e:
             logger.error(f"通过用户名 {username} 获取作品失败: {e}")
             return []
+    
+    def fetch_user_videos_recent_100(self, user_id: str, keyword: str = None) -> List[VideoDetail]:
+        """获取用户最近100条视频（用于内容互动分计算）
+        
+        暂时回退到使用现有的工作方法，获取更多视频用于内容互动分计算
+        
+        Args:
+            user_id: 用户ID (secUid)
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            
+        Returns:
+            视频详情列表
+        """        
+        if keyword:
+            logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品（用于内容互动分计算）")
+            # 使用现有的工作方法，获取更多视频
+            return self.fetch_user_top_videos(user_id, 100, keyword)
+        else:
+            logger.info(f"开始获取用户 {user_id} 的作品（用于内容互动分计算）")
+            # 使用现有的工作方法，获取更多视频
+            return self.fetch_user_top_videos(user_id, 100)

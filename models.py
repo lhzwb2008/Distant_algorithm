@@ -62,6 +62,7 @@ class ContentInteractionScore:
     like_score: float      # 点赞得分
     comment_score: float   # 评论得分
     share_score: float     # 分享得分
+    save_score: float      # 保存得分
     total_score: float     # 总分
     
 @dataclass

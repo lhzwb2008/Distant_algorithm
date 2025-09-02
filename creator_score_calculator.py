@@ -179,30 +179,27 @@ class CreatorScoreCalculator:
             print(f"✅ 使用secUid: {sec_uid[:20]}...")
             
             # 2. 获取用户作品
-            # 维度1（发布频率）和维度2（内容互动）都基于最近三个月的数据
+            # 分离两种数据用途：
+            # - all_video_details: 用于账户质量分计算（发布频率，基于最近三个月的视频）
+            # - filtered_video_details: 用于内容互动分计算（基于最近100条视频）
+            
+            print(f"📡 API调用: 获取用户最近三个月的所有视频列表（用于账户质量分计算）")
+            all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid)  # 获取最近三个月的所有作品（无关键词过滤）
+            
+            print(f"📡 API调用: 获取用户最近100条视频（用于内容互动分计算）")
             if keyword:
-                print(f"📡 API调用: 获取用户最近三个月包含关键词 '{keyword}' 的所有作品")
-                all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid, keyword=keyword)  # 获取最近三个月包含关键词的所有作品
-                video_details = all_video_details  # 用于内容互动计算（关键词匹配的视频）
+                print(f"   筛选条件: 包含关键词 '{keyword}' 的视频")
+                filtered_video_details = self.api_client.fetch_user_videos_recent_100(sec_uid, keyword=keyword)  # 获取最近100条匹配关键词的作品
             else:
-                print(f"📡 API调用: 获取用户最近三个月的所有视频列表")
-                all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid)  # 获取最近三个月的所有作品
-                # 如果没有关键词，则从三个月数据中取前面的视频用于内容互动计算
-                video_details = all_video_details[:min(video_count, 20)]  # 用于内容互动计算的视频数量仍有限制
+                print(f"   筛选条件: 无关键词筛选")
+                filtered_video_details = self.api_client.fetch_user_videos_recent_100(sec_uid)  # 获取最近100条作品
             
-            if not video_details:
-                print(f"❌ 用户 {user_id} 没有找到任何视频数据")
-                return CreatorScore(
-                    user_id=user_id,
-                    username=f"user_{user_id}",
-                    account_quality=AccountQualityScore(0, 0, 0, 0, 1.0),
-                    content_interaction=ContentInteractionScore(0, 0, 0, 0, 0),
-                    final_score=0.0,
-                    video_count=0,
-                    calculated_at=datetime.now()
-                )
+            # 如果最近三个月没有视频数据，仍然要获取用户档案信息来计算账户质量分
+            if not all_video_details:
+                print(f"⚠️  用户 {user_id} 最近三个月没有视频数据，但仍会计算账户质量分（粉丝数、总点赞数）")
             
-            print(f"✅ 成功获取 {len(video_details)} 个视频数据")
+            print(f"✅ 账户质量分计算: 获取 {len(all_video_details)} 个视频数据")
+            print(f"✅ 内容互动分计算: 获取 {len(filtered_video_details)} 个视频数据")
             
             # 3. 获取用户档案信息
             print(f"📡 API调用: 获取用户档案信息")
@@ -247,16 +244,17 @@ class CreatorScoreCalculator:
             # 5. 计算内容互动评分
             print(f"\n🧮 计算内容互动评分")
             if keyword:
-                print(f"📋 内容互动评分包含四个维度（基于关键词'{keyword}'匹配的{len(video_details)}个作品）:")
+                print(f"📋 内容互动评分包含五个维度（基于最近100条视频中关键词'{keyword}'匹配的{len(filtered_video_details)}个作品）:")
             else:
-                print(f"📋 内容互动评分包含四个维度（基于前{len(video_details)}个作品）:")
+                print(f"📋 内容互动评分包含五个维度（基于最近100条视频中的{len(filtered_video_details)}个作品）:")
             print(f"   • 播放量表现 (权重10%)")
-            print(f"   • 点赞率表现 (权重25%)")
+            print(f"   • 点赞率表现 (权重15%)")
             print(f"   • 评论率表现 (权重30%)")
-            print(f"   • 分享率表现 (权重35%)")
+            print(f"   • 分享率表现 (权重30%)")
+            print(f"   • 保存率表现 (权重15%)")
             
             content_interaction = self.content_calculator.calculate_weighted_content_score(
-                video_details, user_profile.follower_count
+                filtered_video_details, user_profile.follower_count
             )
             
             print(f"📊 内容互动评分详情:")
@@ -264,6 +262,7 @@ class CreatorScoreCalculator:
             print(f"   • 点赞率表现: {content_interaction.like_score:.2f}/100")
             print(f"   • 评论率表现: {content_interaction.comment_score:.2f}/100")
             print(f"   • 分享率表现: {content_interaction.share_score:.2f}/100")
+            print(f"   • 保存率表现: {content_interaction.save_score:.2f}/100")
             print(f"   • 内容互动总分: {content_interaction.total_score:.2f}/100")
             
             # 6. 计算最终评分
@@ -295,7 +294,7 @@ class CreatorScoreCalculator:
                 account_quality=account_quality,
                 content_interaction=content_interaction,
                 final_score=final_score,
-                video_count=len(video_details),
+                video_count=len(filtered_video_details),
                 calculated_at=datetime.now()
             )
             
@@ -500,9 +499,10 @@ class CreatorScoreCalculator:
         
         return {
             "播放量表现": f"{content_interaction.view_score:.2f} × 10% = {content_interaction.view_score * 0.1:.2f}",
-            "点赞率表现": f"{content_interaction.like_score:.2f} × 25% = {content_interaction.like_score * 0.25:.2f}",
+            "点赞率表现": f"{content_interaction.like_score:.2f} × 15% = {content_interaction.like_score * 0.15:.2f}",
             "评论率表现": f"{content_interaction.comment_score:.2f} × 30% = {content_interaction.comment_score * 0.3:.2f}",
-            "分享率表现": f"{content_interaction.share_score:.2f} × 35% = {content_interaction.share_score * 0.35:.2f}",
+            "分享率表现": f"{content_interaction.share_score:.2f} × 30% = {content_interaction.share_score * 0.30:.2f}",
+            "保存率表现": f"{content_interaction.save_score:.2f} × 15% = {content_interaction.save_score * 0.15:.2f}",
             "内容互动总分": f"{content_interaction.total_score:.2f}"
         }
     
