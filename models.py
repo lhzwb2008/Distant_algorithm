@@ -75,6 +75,11 @@ class CreatorScore:
     final_score: float
     calculated_at: datetime
     video_count: int = 0  # 分析的视频数量
+    # 新算法相关字段
+    peak_performance: float = 0.0  # 峰值表现
+    recent_performance: float = 0.0  # 近期状态
+    overall_performance: float = 0.0  # 整体水平
+    video_scores: List[float] = None  # 每个视频的评分
     
 @dataclass
 class TrendData:
