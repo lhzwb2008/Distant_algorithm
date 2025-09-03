@@ -17,9 +17,21 @@ class Config:
     
     # TiKhub API配置
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY', '9aNqF1ot61c1hRo5gES7n3RtxF4KrrzilJlp6zzas2cZ2W1UcfNUn1q0BA==')
-    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.io')
+    TIKHUB_BASE_URL = 'https://api.tikhub.dev'  # 强制使用新URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
-    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '3'))
+    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
+    
+    # OpenRouter API配置 - 用于视频质量评分
+    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+    OPENROUTER_BASE_URL = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+    OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', 'openai/gpt-4o-mini')
+    OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
+    OPENROUTER_TEMPERATURE = float(os.getenv('OPENROUTER_TEMPERATURE', '0.3'))
+    OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
+    
+    # 数据获取范围配置
+    ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
+    CONTENT_INTERACTION_MAX_VIDEOS = int(os.getenv('CONTENT_INTERACTION_MAX_VIDEOS', '100'))  # 维度二：内容互动分最大检查视频数
     
     # API端点配置
     API_ENDPOINTS = {
@@ -194,6 +206,9 @@ class Config:
             validation_result['valid'] = False
             validation_result['errors'].append('TIKHUB_API_KEY is required')
         
+        if not cls.OPENROUTER_API_KEY:
+            validation_result['warnings'].append('OPENROUTER_API_KEY is not set, video quality scoring will be disabled')
+        
         # 检查权重总和
         account_weight_sum = sum(cls.ACCOUNT_QUALITY_WEIGHTS.values())
         if abs(account_weight_sum - 1.0) > 0.001:
@@ -233,8 +248,15 @@ class Config:
             Dict[str, Any]: 配置摘要
         """
         return {
-            'api_configured': bool(cls.TIKHUB_API_KEY),
-            'base_url': cls.TIKHUB_BASE_URL,
+            'tikhub_api_configured': bool(cls.TIKHUB_API_KEY),
+            'openrouter_api_configured': bool(cls.OPENROUTER_API_KEY),
+            'tikhub_base_url': cls.TIKHUB_BASE_URL,
+            'openrouter_base_url': cls.OPENROUTER_BASE_URL,
+            'openrouter_model': cls.OPENROUTER_MODEL,
+            'data_range': {
+                'account_quality_days': cls.ACCOUNT_QUALITY_DAYS,
+                'content_interaction_max_videos': cls.CONTENT_INTERACTION_MAX_VIDEOS
+            },
             'main_weights': {
                 'content_quality': cls.CONTENT_QUALITY_WEIGHT,
                 'content_interaction': cls.CONTENT_INTERACTION_WEIGHT

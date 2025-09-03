@@ -31,6 +31,20 @@ class VideoMetrics:
     create_time: Optional[datetime] = None
     
 @dataclass
+class VideoSubtitle:
+    """视频字幕数据模型"""
+    video_id: str
+    caption_format: str  # webvtt, srt等
+    caption_length: int  # 字幕长度
+    language: str        # 语言代码 如eng-US
+    language_code: str   # 简短语言代码 如en
+    is_auto_generated: bool  # 是否自动生成
+    subtitle_urls: List[str]  # 字幕下载链接列表
+    full_text: Optional[str] = None  # 完整文本内容
+    subtitle_count: int = 0  # 字幕条数
+    raw_caption_info: Optional[Dict[str, Any]] = None  # 原始字幕信息
+
+@dataclass
 class VideoDetail:
     """视频详情数据模型"""
     video_id: str
@@ -44,6 +58,7 @@ class VideoDetail:
     download_count: int
     collect_count: int
     duration: Optional[float] = None
+    subtitle: Optional[VideoSubtitle] = None  # 字幕信息
     
 @dataclass
 class AccountQualityScore:

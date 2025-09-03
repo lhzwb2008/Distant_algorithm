@@ -90,26 +90,18 @@ class AccountQualityCalculator:
         valid_videos = []
         invalid_time_videos = []
         
-        logger.info(f"发布频率计算开始（基于三个月数据）：")
-        logger.info(f"  当前时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"  三个月前时间: {three_months_ago.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"  总视频数: {len(video_details)}")
+        logger.info(f"发布频率计算开始（基于三个月数据，共{len(video_details)}个视频）")
         
-        for i, video in enumerate(video_details):
-            logger.info(f"  视频{i+1}: ID={video.video_id}")
+        for video in video_details:
             if video.create_time:
-                logger.info(f"    创建时间: {video.create_time.strftime('%Y-%m-%d %H:%M:%S')} (年份: {video.create_time.year})")
                 # 检查时间是否有效（不是1970年的时间戳）
                 if video.create_time.year > 1980:  # 合理的时间范围
                     # 由于传入的video_details已经是三个月内的数据，这里不再过滤时间范围
                     valid_videos.append(video)
-                    logger.info(f"    ✅ 有效视频")
                 else:
                     invalid_time_videos.append(video)
-                    logger.info(f"    ❌ 无效时间戳（年份 <= 1980）")
             else:
                 invalid_time_videos.append(video)
-                logger.info(f"    ❌ 缺少创建时间")
         
         # 如果没有有效时间的视频，但有视频数据，则使用简化计算
         if not valid_videos and invalid_time_videos:
@@ -136,14 +128,7 @@ class AccountQualityCalculator:
                 "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
             }
             
-            logger.info(f"简化计算详情:")
-            logger.info(f"  总视频数: {len(video_details)}")
-            logger.info(f"  假设时间跨度: 12周（3个月）")
-            logger.info(f"  估算发布频率: {len(video_details)} ÷ 12 = {estimated_weekly_frequency:.2f}次/周")
-            logger.info(f"  理想频率: {ideal_frequency}次/周")
-            logger.info(f"  偏差: |{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}")
-            logger.info(f"  扣分: {deviation:.2f} × {penalty_coefficient} = {penalty:.2f}")
-            logger.info(f"  最终得分: max(0, 100 - {penalty:.2f}) = {score:.2f}")
+            logger.info(f"简化计算：{len(video_details)}个视频，估算频率{estimated_weekly_frequency:.1f}次/周，得分{score:.1f}")
             return score, details
         
         if not valid_videos:
@@ -183,17 +168,7 @@ class AccountQualityCalculator:
             "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
         }
         
-        logger.info(f"三个月数据计算详情:")
-        logger.info(f"  有效视频数: {len(valid_videos)}")
-        logger.info(f"  最早视频时间: {oldest_video_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"  最晚视频时间: {newest_video_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"  时间跨度: (最晚 - 最早) = {time_span_days}天")
-        logger.info(f"  周数计算: {time_span_days} ÷ 7 = {weeks_count:.2f}周")
-        logger.info(f"  发布频率: {len(valid_videos)} ÷ {weeks_count:.2f} = {weekly_frequency:.2f}次/周")
-        logger.info(f"  理想频率: {ideal_frequency}次/周")
-        logger.info(f"  偏差: |{weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}")
-        logger.info(f"  扣分: {deviation:.2f} × {penalty_coefficient} = {penalty:.2f}")
-        logger.info(f"  最终得分: max(0, 100 - {penalty:.2f}) = {score:.2f}")
+        logger.info(f"发布频率计算完成：{len(valid_videos)}个视频，{time_span_days}天，频率{weekly_frequency:.1f}次/周，得分{score:.1f}")
         return score, details
         
     def get_quality_multiplier(self, total_score: float) -> float:

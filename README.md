@@ -189,7 +189,7 @@ cp .env.example .env
 ```env
 # TiKhub API配置
 TIKHUB_API_KEY=your_api_key_here
-TIKHUB_BASE_URL=https://api.tikhub.io
+TIKHUB_BASE_URL=https://api.tikhub.dev
 TIKHUB_REQUEST_TIMEOUT=30
 TIKHUB_MAX_RETRIES=3
 

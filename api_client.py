@@ -3,11 +3,12 @@
 import requests
 import time
 import logging
+import re
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from config import Config
-from models import UserProfile, VideoMetrics, VideoDetail
+from models import UserProfile, VideoMetrics, VideoDetail, VideoSubtitle
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ class TiKhubAPIClient:
             except requests.RequestException as e:
                 logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
                 if attempt == Config.TIKHUB_MAX_RETRIES - 1:
-                    raise
+                    logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
+                    import sys
+                    sys.exit(1)
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
                 
     def fetch_user_profile(self, username_or_secuid: str) -> UserProfile:
@@ -159,6 +162,9 @@ class TiKhubAPIClient:
         aweme_detail = data.get('aweme_detail', {})
         statistics = aweme_detail.get('statistics', {})
         
+        # 从已有的API响应中提取字幕信息（避免重复API调用）
+        subtitle = self._extract_subtitle_from_response(video_id, aweme_detail)
+        
         return VideoDetail(
             video_id=video_id,
             desc=aweme_detail.get('desc', ''),
@@ -170,7 +176,8 @@ class TiKhubAPIClient:
             share_count=statistics.get('share_count', 0),
             download_count=statistics.get('download_count', 0),
             collect_count=statistics.get('collect_count', 0),
-            duration=aweme_detail.get('duration', 0) / 1000.0  # 转换为秒
+            duration=aweme_detail.get('duration', 0) / 1000.0,  # 转换为秒
+            subtitle=subtitle
         )
         
     def fetch_user_videos(self, user_id: str, count: int = 10) -> List[str]:
@@ -244,122 +251,169 @@ class TiKhubAPIClient:
         """
         if keyword:
             logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品")
-            # API文档明确说明count不可变更，固定为20
-            api_count = 20
+            # 当有关键词时，需要获取更多视频进行筛选
+            max_videos_to_check = Config.CONTENT_INTERACTION_MAX_VIDEOS
+            max_pages = max_videos_to_check // 20 + 1  # 计算需要的页数
         else:
             logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
-            # API文档明确说明count不可变更，固定为20
-            api_count = 20
+            max_pages = 1  # 无关键词时只需要一页
         
-        # 直接调用API获取用户视频列表（根据API文档完整配置）
-        params = {
-            'secUid': user_id,
-            'cursor': 0,
-            'count': api_count,
-            'coverFormat': 2,
-            'post_item_list_request_type': 0
-        }
+        all_videos = []
+        cursor = 0
+        page = 1
         
-        try:
-            # 使用配置中的API端点获取用户视频列表
-            data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
+        # 分页获取视频
+        while page <= max_pages:
+            # 直接调用API获取用户视频列表（根据API文档完整配置）
+            params = {
+                'secUid': user_id,
+                'cursor': cursor,
+                'count': 20,  # API固定每页20个
+                'coverFormat': 2,
+                'post_item_list_request_type': 0
+            }
             
-            # 检查API响应状态
-            if data.get('statusCode', 1) != 0:
-                logger.warning(f"API返回错误状态: {data.get('statusMsg', 'Unknown error')}")
-                return []
-            
-            # 获取视频列表 - 使用与fetch_user_videos相同的逻辑
-            videos = []
-            
-            # 尝试格式1: data.itemList (最常见的格式)
-            if 'itemList' in data:
-                videos = data['itemList']
-                logger.debug(f"使用格式1获取到 {len(videos)} 个视频")
-            # 尝试格式2: data.data.itemList
-            elif 'data' in data and 'itemList' in data['data']:
-                videos = data['data']['itemList']
-                logger.debug(f"使用格式2获取到 {len(videos)} 个视频")
-            # 尝试格式3: data.aweme_list
-            elif 'aweme_list' in data:
-                videos = data['aweme_list']
-                logger.debug(f"使用格式3获取到 {len(videos)} 个视频")
-            # 尝试格式4: data.data.aweme_list
-            elif 'data' in data and 'aweme_list' in data['data']:
-                videos = data['data']['aweme_list']
-                logger.debug(f"使用格式4获取到 {len(videos)} 个视频")
-            else:
-                logger.warning(f"未知的API响应格式，可用的键: {list(data.keys())}")
-                return []
-            
-            # 从视频列表构建VideoDetail对象，并获取额外的指标数据
-            video_details = []
-            
-            # 如果有关键词，先筛选匹配的视频
-            if keyword:
-                filtered_videos = []
-                logger.info(f"🔍 开始筛选包含关键词 '{keyword}' 的视频...")
-                for i, video in enumerate(videos, 1):
-                    desc = video.get('desc', '')
-                    video_id = video.get('id', 'unknown')
-                    if keyword.lower() in desc.lower():
-                        filtered_videos.append(video)
-                        logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
-                        logger.info(f"   📹 视频ID: {video_id}")
-                        logger.info(f"   📝 完整描述: {desc}")
-                    else:
-                        logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
-                        logger.info(f"   📹 视频ID: {video_id}")
-                        logger.info(f"   📝 完整描述: {desc}")
-                videos_to_process = filtered_videos
-                logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(videos)} 个视频匹配")
-            else:
-                videos_to_process = videos[:count]
-            
-            for video in videos_to_process:
-                try:
-                    video_id = video.get('id', '')
+            try:
+                # 使用配置中的API端点获取用户视频列表
+                data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
+                
+                # 检查API响应状态
+                if data.get('statusCode', 1) != 0:
+                    logger.warning(f"第{page}页API返回错误状态: {data.get('statusMsg', 'Unknown error')}")
+                    break
+                
+                # 获取视频列表 - 使用与fetch_user_videos相同的逻辑
+                videos = []
+                
+                # 尝试格式1: data.itemList (最常见的格式)
+                if 'itemList' in data:
+                    videos = data['itemList']
+                    logger.debug(f"第{page}页使用格式1获取到 {len(videos)} 个视频")
+                # 尝试格式2: data.data.itemList
+                elif 'data' in data and 'itemList' in data['data']:
+                    videos = data['data']['itemList']
+                    logger.debug(f"第{page}页使用格式2获取到 {len(videos)} 个视频")
+                # 尝试格式3: data.aweme_list
+                elif 'aweme_list' in data:
+                    videos = data['aweme_list']
+                    logger.debug(f"第{page}页使用格式3获取到 {len(videos)} 个视频")
+                # 尝试格式4: data.data.aweme_list
+                elif 'data' in data and 'aweme_list' in data['data']:
+                    videos = data['data']['aweme_list']
+                    logger.debug(f"第{page}页使用格式4获取到 {len(videos)} 个视频")
+                else:
+                    logger.warning(f"第{page}页未知的API响应格式，可用的键: {list(data.keys())}")
+                    break
+                
+                if not videos:
+                    logger.info(f"第{page}页没有更多视频，停止分页")
+                    break
+                
+                all_videos.extend(videos)
+                logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
+                
+                # 更新cursor和页数
+                cursor = data.get('cursor', cursor + len(videos))
+                # 确保cursor是整数
+                if isinstance(cursor, str):
+                    try:
+                        cursor = int(cursor)
+                    except ValueError:
+                        cursor = cursor + len(videos)
+                page += 1
+                
+                # 如果这页视频少于20个，说明已经到最后一页
+                if len(videos) < 20:
+                    logger.info(f"第{page-1}页视频数量少于20个，已到达最后一页")
+                    break
                     
-                    # 从基础API响应获取数据
-                    base_stats = video.get('stats', {})
-                    
-                    # 直接使用基础API数据（video_metrics API暂时不可用）
-                    view_count = base_stats.get('playCount', 0)
-                    like_count = base_stats.get('diggCount', 0)
-                    comment_count = base_stats.get('commentCount', 0)
-                    share_count = base_stats.get('shareCount', 0)
-                    collect_count = base_stats.get('collectCount', 0)
-                    
-                    video_detail = VideoDetail(
-                        video_id=video_id,
-                        desc=video.get('desc', ''),
-                        create_time=datetime.fromtimestamp(video.get('createTime', 0)),
-                        author_id=video.get('author', {}).get('uniqueId', ''),
-                        view_count=view_count,
-                        like_count=like_count,
-                        comment_count=comment_count,
-                        share_count=share_count,
-                        download_count=base_stats.get('downloadCount', 0),  # 下载数只在基础API中有
-                        collect_count=collect_count,
-                        duration=video.get('video', {}).get('duration', 0)
-                    )
-                    video_details.append(video_detail)
-                    # 记录详细的视频数据
-                    logger.info(f"成功解析视频 {video_detail.video_id}")
-                    logger.info(f"  📺 播放: {view_count:,}, 👍 点赞: {like_count:,}, 💬 评论: {comment_count:,}, 🔄 分享: {share_count:,}")
-                    logger.info(f"  📝 完整描述: {video_detail.desc}")
-                    if collect_count > 0:
-                        logger.info(f"  ⭐ 收藏: {collect_count:,}")
-                except Exception as e:
-                    logger.error(f"解析视频数据失败: {e}")
-                    continue
-                    
-            logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
-            return video_details
+            except Exception as e:
+                logger.error(f"第{page}页获取失败: {e}")
+                break
+        
+        logger.info(f"分页获取完成，总共获取 {len(all_videos)} 个视频")
+        
+        # 从视频列表构建VideoDetail对象，并获取额外的指标数据
+        video_details = []
+        
+        # 如果有关键词，先筛选匹配的视频
+        if keyword:
+            filtered_videos = []
+            logger.info(f"🔍 开始筛选包含关键词 '{keyword}' 的视频...")
+            for i, video in enumerate(all_videos, 1):
+                desc = video.get('desc', '')
+                video_id = video.get('id', 'unknown')
+                if keyword.lower() in desc.lower():
+                    filtered_videos.append(video)
+                    logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
+                    logger.info(f"   📹 视频ID: {video_id}")
+                    logger.info(f"   📝 完整描述: {desc}")
+                else:
+                    logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
+                    logger.info(f"   📹 视频ID: {video_id}")
+                    logger.info(f"   📝 完整描述: {desc}")
             
-        except Exception as e:
-            logger.error(f"获取用户视频列表失败: {e}")
-            return []
+            logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(all_videos)} 个视频匹配")
+            videos_to_process = filtered_videos
+        else:
+            # 如果没有关键词，按count截取
+            videos_to_process = all_videos[:count]
+            
+        for video in videos_to_process:
+            try:
+                video_id = video.get('id', '')
+                
+                # 从基础API响应获取数据
+                base_stats = video.get('stats', {})
+                
+                # 直接使用基础API数据（video_metrics API暂时不可用）
+                view_count = base_stats.get('playCount', 0)
+                like_count = base_stats.get('diggCount', 0)
+                comment_count = base_stats.get('commentCount', 0)
+                share_count = base_stats.get('shareCount', 0)
+                collect_count = base_stats.get('collectCount', 0)
+                
+                # 维度二（内容互动分）需要对匹配关键词的视频提取字幕
+                if keyword:
+                    # 对匹配关键词的视频进行字幕提取
+                    subtitle = self.extract_subtitle_text(video_id)
+                else:
+                    subtitle = None
+                
+                video_detail = VideoDetail(
+                    video_id=video_id,
+                    desc=video.get('desc', ''),
+                    create_time=datetime.fromtimestamp(video.get('createTime', 0)),
+                    author_id=video.get('author', {}).get('uniqueId', ''),
+                    view_count=view_count,
+                    like_count=like_count,
+                    comment_count=comment_count,
+                    share_count=share_count,
+                    download_count=base_stats.get('downloadCount', 0),  # 下载数只在基础API中有
+                    collect_count=collect_count,
+                    duration=video.get('video', {}).get('duration', 0),
+                    subtitle=subtitle
+                )
+                video_details.append(video_detail)
+                # 记录详细的视频数据
+                logger.info(f"成功解析视频 {video_detail.video_id}")
+                logger.info(f"  📺 播放: {view_count:,}, 👍 点赞: {like_count:,}, 💬 评论: {comment_count:,}, 🔄 分享: {share_count:,}")
+                logger.info(f"  📝 完整描述: {video_detail.desc}")
+                if collect_count > 0:
+                    logger.info(f"  ⭐ 收藏: {collect_count:,}")
+                
+                # 显示字幕信息（如果有的话）
+                if subtitle:
+                    logger.info(f"  🎬 字幕: {subtitle.language_code}, {len(subtitle.full_text)}字符 (已获取)")
+                else:
+                    logger.info(f"  🎬 字幕: 无字幕或提取失败")
+                    
+            except Exception as e:
+                logger.error(f"解析视频数据失败: {e}")
+                continue
+                    
+        logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
+        return video_details
     
     def fetch_user_videos_last_3_months(self, user_id: str, max_pages: int = 20, keyword: str = None) -> List[VideoDetail]:
         """获取用户最近三个月的所有视频（支持分页）
@@ -379,10 +433,10 @@ class TiKhubAPIClient:
         else:
             logger.info(f"开始获取用户 {user_id} 最近三个月的所有作品（支持分页）")
         
-        # 计算三个月前的时间
+        # 计算指定天数前的时间
         now = datetime.now()
-        three_months_ago = now - timedelta(days=90)  # 约3个月
-        logger.info(f"时间范围: {three_months_ago.strftime('%Y-%m-%d')} 至 {now.strftime('%Y-%m-%d')}")
+        days_ago = now - timedelta(days=Config.ACCOUNT_QUALITY_DAYS)
+        logger.info(f"时间范围: {days_ago.strftime('%Y-%m-%d')} 至 {now.strftime('%Y-%m-%d')}")
         
         all_videos = []
         cursor = 0
@@ -445,10 +499,10 @@ class TiKhubAPIClient:
                         video_id = video.get('id', '')
                         create_time = datetime.fromtimestamp(video.get('createTime', 0))
                         
-                        # 检查视频是否在三个月范围内
-                        if create_time < three_months_ago:
+                        # 检查视频是否在指定时间范围内
+                        if create_time < days_ago:
                             videos_outside_range += 1
-                            logger.info(f"视频 {video_id} 创建时间 {create_time.strftime('%Y-%m-%d')} 超出三个月范围，跳过")
+                            logger.info(f"视频 {video_id} 创建时间 {create_time.strftime('%Y-%m-%d')} 超出{Config.ACCOUNT_QUALITY_DAYS}天范围，跳过")
                             continue
                         
                         # 关键词筛选（如果提供了关键词）
@@ -471,6 +525,9 @@ class TiKhubAPIClient:
                         share_count = base_stats.get('shareCount', 0)
                         collect_count = base_stats.get('collectCount', 0)
                         
+                        # 维度一（账户质量分）不需要字幕，设为None
+                        subtitle = None
+                        
                         video_detail = VideoDetail(
                             video_id=video_id,
                             desc=video.get('desc', ''),
@@ -482,11 +539,14 @@ class TiKhubAPIClient:
                             share_count=share_count,
                             download_count=base_stats.get('downloadCount', 0),  # 与现有代码保持一致
                             collect_count=collect_count,
-                            duration=video.get('video', {}).get('duration', 0)
+                            duration=video.get('video', {}).get('duration', 0),
+                            subtitle=subtitle
                         )
                         page_videos.append(video_detail)
                         
                         logger.info(f"成功解析视频 {video_detail.video_id} (创建时间: {create_time.strftime('%Y-%m-%d')})")
+                        
+                        # 账户质量分计算不需要字幕信息
                         
                     except Exception as e:
                         logger.error(f"解析视频数据失败: {e}")
@@ -628,6 +688,232 @@ class TiKhubAPIClient:
             logger.error(f"备用方法：通过用户名 {username} 获取secUid失败: {e}")
             
         return None
+    
+    def _extract_subtitle_from_response(self, video_id: str, aweme_detail: Dict[str, Any]) -> Optional[VideoSubtitle]:
+        """从已有的API响应中提取字幕信息（避免重复API调用）
+        
+        Args:
+            video_id: 视频ID
+            aweme_detail: 已获取的aweme_detail数据
+            
+        Returns:
+            VideoSubtitle对象，包含字幕文本，如果没有字幕则返回None
+        """
+        try:
+            if 'video' not in aweme_detail:
+                logger.debug(f"视频 {video_id} 没有video字段")
+                return None
+            
+            video_info = aweme_detail['video']
+            
+            # 检查字幕信息 - 字幕在video.cla_info.caption_infos中
+            if 'cla_info' not in video_info:
+                logger.debug(f"视频 {video_id} 没有cla_info字段")
+                return None
+            
+            cla_info = video_info['cla_info']
+            
+            if not isinstance(cla_info, dict) or 'caption_infos' not in cla_info:
+                logger.debug(f"视频 {video_id} 没有caption_infos字段")
+                return None
+            
+            caption_infos = cla_info['caption_infos']
+            if not caption_infos:
+                logger.debug(f"视频 {video_id} 字幕信息为空")
+                return None
+            
+            # 获取第一个字幕信息（通常是主要语言）
+            caption_info = caption_infos[0]
+            
+            # 获取字幕URL
+            subtitle_urls = caption_info.get('url_list', [])
+            if not subtitle_urls:
+                logger.debug(f"视频 {video_id} 没有字幕下载链接")
+                return None
+            
+            # 下载字幕内容
+            full_text = self._download_subtitle_content(subtitle_urls)
+            if not full_text:
+                logger.debug(f"视频 {video_id} 字幕下载失败")
+                return None
+            
+            subtitle = VideoSubtitle(
+                video_id=video_id,
+                caption_format=caption_info.get('caption_format', 'unknown'),
+                caption_length=caption_info.get('caption_length', 0),
+                language=caption_info.get('lang', 'unknown'),
+                language_code=caption_info.get('language_code', 'unknown'),
+                is_auto_generated=caption_info.get('is_auto_generated', False),
+                subtitle_urls=subtitle_urls,
+                full_text=full_text,
+                subtitle_count=full_text.count('.') + full_text.count('!') + full_text.count('?'),  # 估算句子数
+                raw_caption_info=caption_info
+            )
+            
+            logger.info(f"📝 视频 {video_id} 字幕提取成功: {subtitle.language_code}, {len(full_text)}字符")
+            
+            return subtitle
+            
+        except Exception as e:
+            logger.error(f"提取视频 {video_id} 字幕失败: {e}")
+            return None
+    
+    def extract_subtitle_text(self, video_id: str) -> Optional[VideoSubtitle]:
+        """提取视频字幕文本
+        
+        Args:
+            video_id: 视频ID
+            
+        Returns:
+            VideoSubtitle对象，包含字幕文本，如果没有字幕则返回None
+        """
+        try:
+            # 获取视频详情
+            params = {'aweme_id': video_id}
+            raw_data = self._make_request(Config.VIDEO_DETAIL_ENDPOINT, params)
+            
+            if 'aweme_detail' not in raw_data:
+                logger.debug(f"视频 {video_id} 没有详情数据")
+                return None
+            
+            aweme_detail = raw_data['aweme_detail']
+            
+            if 'video' not in aweme_detail:
+                logger.debug(f"视频 {video_id} 没有video字段")
+                return None
+            
+            video_info = aweme_detail['video']
+            
+            # 检查字幕信息 - 字幕在video.cla_info.caption_infos中
+            if 'cla_info' not in video_info:
+                logger.debug(f"视频 {video_id} 没有cla_info字段")
+                return None
+            
+            cla_info = video_info['cla_info']
+            
+            if not isinstance(cla_info, dict) or 'caption_infos' not in cla_info:
+                logger.debug(f"视频 {video_id} 没有caption_infos字段")
+                return None
+            
+            caption_infos = cla_info['caption_infos']
+            if not caption_infos:
+                logger.debug(f"视频 {video_id} 字幕信息为空")
+                return None
+            
+            # 获取第一个字幕信息（通常是主要语言）
+            caption_info = caption_infos[0]
+            
+            # 获取字幕URL
+            subtitle_urls = caption_info.get('url_list', [])
+            if not subtitle_urls:
+                logger.debug(f"视频 {video_id} 没有字幕下载链接")
+                return None
+            
+            # 下载字幕内容
+            full_text = self._download_subtitle_content(subtitle_urls)
+            if not full_text:
+                logger.debug(f"视频 {video_id} 字幕下载失败")
+                return None
+            
+            subtitle = VideoSubtitle(
+                video_id=video_id,
+                caption_format=caption_info.get('caption_format', 'unknown'),
+                caption_length=caption_info.get('caption_length', 0),
+                language=caption_info.get('lang', 'unknown'),
+                language_code=caption_info.get('language_code', 'unknown'),
+                is_auto_generated=caption_info.get('is_auto_generated', False),
+                subtitle_urls=subtitle_urls,
+                full_text=full_text,
+                subtitle_count=full_text.count('.') + full_text.count('!') + full_text.count('?'),  # 估算句子数
+                raw_caption_info=caption_info
+            )
+            
+            logger.info(f"📝 视频 {video_id} 字幕提取成功: {subtitle.language_code}, {len(full_text)}字符")
+            
+            return subtitle
+            
+        except Exception as e:
+            logger.error(f"提取视频 {video_id} 字幕失败: {e}")
+            return None
+    
+    def _download_subtitle_content(self, subtitle_urls: List[str]) -> Optional[str]:
+        """下载并解析字幕内容，返回纯文本
+        
+        Args:
+            subtitle_urls: 字幕下载链接列表
+            
+        Returns:
+            纯文本内容，如果下载失败则返回None
+        """
+        for i, url in enumerate(subtitle_urls, 1):
+            try:
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': 'https://www.tiktok.com/',
+                }
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    content = response.text
+                    
+                    # 解析WebVTT格式，提取纯文本
+                    if content.startswith('WEBVTT'):
+                        full_text = self._parse_webvtt_to_text(content)
+                        if full_text:
+                            return full_text
+                    else:
+                        # 如果不是WebVTT格式，直接返回内容
+                        return content
+                        
+            except Exception as e:
+                logger.debug(f"字幕链接 {i} 下载失败: {e}")
+                continue
+        
+        return None
+    
+    def _parse_webvtt_to_text(self, webvtt_content: str) -> str:
+        """解析WebVTT内容，提取纯文本
+        
+        Args:
+            webvtt_content: WebVTT格式的字幕内容
+            
+        Returns:
+            纯文本内容
+        """
+        if not webvtt_content or not webvtt_content.startswith('WEBVTT'):
+            return ""
+        
+        lines = webvtt_content.strip().split('\n')
+        text_lines = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # 查找时间戳行 (格式: 00:00:00.000 --> 00:00:02.000)
+            if '-->' in line:
+                # 收集字幕文本（可能跨多行）
+                i += 1
+                while i < len(lines) and lines[i].strip() and '-->' not in lines[i]:
+                    text_content = lines[i].strip()
+                    if text_content:
+                        text_lines.append(text_content)
+                    i += 1
+                continue
+            
+            i += 1
+        
+        # 合并所有文本，去重复
+        full_text = ' '.join(text_lines)
+        
+        # 清理文本
+        full_text = re.sub(r'\s+', ' ', full_text)  # 合并多个空格
+        full_text = full_text.strip()
+        
+        return full_text
             
     def fetch_user_videos_by_username(self, username: str, count: int = 5, keyword: str = None) -> List[VideoDetail]:
         """通过用户名获取用户作品详情

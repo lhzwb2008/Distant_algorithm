@@ -1,7 +1,7 @@
 """TikTok创作者评分计算器（主评分公式）"""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from config import Config
@@ -12,6 +12,9 @@ from models import (
 from api_client import TiKhubAPIClient
 from account_quality_calculator import AccountQualityCalculator
 from content_interaction_calculator import ContentInteractionCalculator
+from video_quality_scorer import VideoQualityScorer
+from improved_api_flow import ImprovedAPIFlow
+from openrouter_client import QualityScore
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +36,13 @@ class CreatorScoreCalculator:
         self.api_client = api_client or TiKhubAPIClient()
         self.account_calculator = AccountQualityCalculator()
         self.content_calculator = ContentInteractionCalculator()
+        self.quality_scorer = VideoQualityScorer()
+        self.improved_flow = ImprovedAPIFlow(self.api_client, self.quality_scorer)
         
         # 权重配置
         self.content_weight = Config.CONTENT_INTERACTION_WEIGHT  # 65%
         self.content_quality_weight = 0.35  # 35% 内容质量权重
-        self.content_quality_score = 60.0   # 内容质量固定分数
+        self.content_quality_score = 60.0   # 内容质量固定分数（当没有AI评分时的默认值）
         
     async def calculate_creator_score(self, 
                                     username: str,
@@ -162,12 +167,12 @@ class CreatorScoreCalculator:
         creator_score = self.calculate_creator_score_by_user_id(sec_uid, keyword=keyword)
         return creator_score.final_score
     
-    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 5, keyword: str = None) -> CreatorScore:
-        """通过用户ID计算创作者评分（模拟分数计算）
+    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 100, keyword: str = None) -> CreatorScore:
+        """通过用户ID计算创作者评分（使用优化的API流程）
         
         Args:
             user_id: TikTok用户ID
-            video_count: 获取的视频数量，默认5个（当没有关键词时使用）
+            video_count: 获取的视频数量，默认100个用于内容互动分计算
             keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
             
         Returns:
@@ -178,28 +183,32 @@ class CreatorScoreCalculator:
             sec_uid = user_id
             print(f"✅ 使用secUid: {sec_uid[:20]}...")
             
-            # 2. 获取用户作品
-            # 分离两种数据用途：
-            # - all_video_details: 用于账户质量分计算（发布频率，基于最近三个月的视频）
-            # - filtered_video_details: 用于内容互动分计算（基于最近100条视频）
+            # 2. 🔄 使用优化的API流程
+            print(f"🚀 开始使用优化的API调用流程")
             
-            print(f"📡 API调用: 获取用户最近三个月的所有视频列表（用于账户质量分计算）")
-            all_video_details = self.api_client.fetch_user_videos_last_3_months(sec_uid)  # 获取最近三个月的所有作品（无关键词过滤）
+            # 阶段1：获取账户质量分数据（最近3个月，不调用大模型）
+            print(f"📊 阶段1: 获取账户质量分计算数据")
+            account_quality_videos = self.improved_flow.fetch_videos_for_account_quality(sec_uid)
             
-            print(f"📡 API调用: 获取用户最近100条视频（用于内容互动分计算）")
+            # 阶段2：获取内容互动分数据并对匹配关键词的视频进行AI评分
+            print(f"🎯 阶段2: 获取内容互动分计算数据并进行AI质量评分")
             if keyword:
-                print(f"   筛选条件: 包含关键词 '{keyword}' 的视频")
-                filtered_video_details = self.api_client.fetch_user_videos_recent_100(sec_uid, keyword=keyword)  # 获取最近100条匹配关键词的作品
+                print(f"   🔍 关键词筛选: '{keyword}'")
             else:
-                print(f"   筛选条件: 无关键词筛选")
-                filtered_video_details = self.api_client.fetch_user_videos_recent_100(sec_uid)  # 获取最近100条作品
+                print(f"   📋 无关键词筛选，获取前{video_count}条视频")
+            
+            content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
+                sec_uid, keyword=keyword, max_videos=video_count
+            )
+            
+            # 数据获取结果统计
+            print(f"✅ 账户质量分计算: 获取 {len(account_quality_videos)} 个视频数据（最近3个月）")
+            print(f"✅ 内容互动分计算: 获取 {len(content_interaction_videos)} 个视频数据（最近{video_count}条）")
+            print(f"🤖 AI质量评分: 完成 {len(ai_quality_scores)} 个视频的评分")
             
             # 如果最近三个月没有视频数据，仍然要获取用户档案信息来计算账户质量分
-            if not all_video_details:
+            if not account_quality_videos:
                 print(f"⚠️  用户 {user_id} 最近三个月没有视频数据，但仍会计算账户质量分（粉丝数、总点赞数）")
-            
-            print(f"✅ 账户质量分计算: 获取 {len(all_video_details)} 个视频数据")
-            print(f"✅ 内容互动分计算: 获取 {len(filtered_video_details)} 个视频数据")
             
             # 3. 获取用户档案信息
             print(f"📡 API调用: 获取用户档案信息")
@@ -216,8 +225,8 @@ class CreatorScoreCalculator:
                     display_name=f"user_{user_id}",
                     follower_count=0,
                     following_count=0,
-                    total_likes=sum(video.like_count for video in filtered_video_details),
-                    video_count=len(filtered_video_details),
+                    total_likes=sum(video.like_count for video in content_interaction_videos),
+                    video_count=len(content_interaction_videos),
                     bio="",
                     avatar_url="",
                     verified=False
@@ -231,7 +240,7 @@ class CreatorScoreCalculator:
             print(f"   • 发布频率评分 (权重20%) - 基于最近三个月的所有作品")
             
             account_quality = self.account_calculator.calculate_account_quality(
-                user_profile, all_video_details
+                user_profile, account_quality_videos  # 使用最近3个月的视频数据
             )
             
             print(f"📊 账户质量评分详情:")
@@ -244,9 +253,9 @@ class CreatorScoreCalculator:
             # 5. 计算内容互动评分
             print(f"\n🧮 计算内容互动评分")
             if keyword:
-                print(f"📋 内容互动评分包含五个维度（基于最近100条视频中关键词'{keyword}'匹配的{len(filtered_video_details)}个作品）:")
+                print(f"📋 内容互动评分包含五个维度（基于最近{video_count}条视频中关键词'{keyword}'匹配的{len(content_interaction_videos)}个作品）:")
             else:
-                print(f"📋 内容互动评分包含五个维度（基于最近100条视频中的{len(filtered_video_details)}个作品）:")
+                print(f"📋 内容互动评分包含五个维度（基于最近{video_count}条视频中的{len(content_interaction_videos)}个作品）:")
             print(f"   • 播放量表现 (权重10%)")
             print(f"   • 点赞率表现 (权重15%)")
             print(f"   • 评论率表现 (权重30%)")
@@ -254,7 +263,7 @@ class CreatorScoreCalculator:
             print(f"   • 保存率表现 (权重15%)")
             
             content_interaction = self.content_calculator.calculate_weighted_content_score(
-                filtered_video_details, user_profile.follower_count
+                content_interaction_videos, user_profile.follower_count  # 使用新的API流程获取的视频数据
             )
             
             print(f"📊 内容互动评分详情:")
@@ -272,15 +281,38 @@ class CreatorScoreCalculator:
             print(f"   其中: 每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%")
             print(f"   内容质量固定为60分")
             
-            final_score = self._calculate_final_score(
-                account_quality, filtered_video_details, user_profile.follower_count
+            # 6. 🤖 集成AI质量评分到最终计算
+            print(f"\n🤖 AI视频质量评分集成")
+            if ai_quality_scores:
+                avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
+                print(f"📊 AI质量评分统计:")
+                print(f"   • 评分视频数: {len(ai_quality_scores)}")
+                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (替代默认60分)")
+                print(f"   • 最高AI质量分: {max(score.total_score for score in ai_quality_scores.values()):.1f}/100")
+                print(f"   • 最低AI质量分: {min(score.total_score for score in ai_quality_scores.values()):.1f}/100")
+                
+                # 显示每个视频的AI评分详情
+                print(f"📋 各视频AI质量评分详情:")
+                for video_id, ai_score in ai_quality_scores.items():
+                    print(f"   • 视频 {video_id}: {ai_score.total_score:.1f}/100")
+                    print(f"     - 关键词: {ai_score.keyword_score:.1f}/60")
+                    print(f"     - 原创性: {ai_score.originality_score:.1f}/20") 
+                    print(f"     - 清晰度: {ai_score.clarity_score:.1f}/10")
+                    print(f"     - 垃圾识别: {ai_score.spam_score:.1f}/5")
+                    print(f"     - 推广识别: {ai_score.promotion_score:.1f}/5")
+            else:
+                print(f"⚠️  没有AI质量评分数据，使用默认内容质量分: {self.content_quality_score}/100")
+                print(f"   • 原因: 没有匹配关键词的视频或字幕提取失败")
+            
+            final_score = self._calculate_final_score_with_ai(
+                account_quality, content_interaction_videos, user_profile.follower_count, ai_quality_scores
             )
             
             # 计算基础分数用于显示（使用新算法）
-            if filtered_video_details:
+            if content_interaction_videos:
                 video_scores = []
-                for video in filtered_video_details:
-                    video_score = self._calculate_single_video_score(video, user_profile.follower_count)
+                for video in content_interaction_videos:
+                    video_score = self._calculate_single_video_score_with_ai(video, user_profile.follower_count, ai_quality_scores)
                     video_scores.append(video_score)
                 
                 n = len(video_scores)
@@ -300,13 +332,15 @@ class CreatorScoreCalculator:
                 base_score = self.content_quality_score * self.content_quality_weight
             
             print(f"📊 最终评分计算详情:")
-            if filtered_video_details:
-                print(f"   • 视频总数: {len(filtered_video_details)} 个")
+            if content_interaction_videos:
+                print(f"   • 视频总数: {len(content_interaction_videos)} 个")
                 print(f"   • 峰值表现: {peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}")
                 print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_scores)}条视频)")
                 print(f"   • 整体水平: {overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有视频)")
                 print(f"   • 基础分数: {base_score:.2f}")
                 print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
+                if ai_quality_scores:
+                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分替代默认60分")
             else:
                 print(f"   • 无视频数据，使用默认内容质量分数: {self.content_quality_score:.2f}")
                 print(f"   • 基础分数: {base_score:.2f}")
@@ -319,13 +353,13 @@ class CreatorScoreCalculator:
                 account_quality=account_quality,
                 content_interaction=content_interaction,
                 final_score=final_score,
-                video_count=len(filtered_video_details),
+                video_count=len(content_interaction_videos),  # 使用新的视频数据
                 calculated_at=datetime.now(),
                 # 新算法相关字段
-                peak_performance=peak_performance if filtered_video_details else 0.0,
-                recent_performance=recent_performance if filtered_video_details else 0.0,
-                overall_performance=overall_performance if filtered_video_details else 0.0,
-                video_scores=video_scores if filtered_video_details else []
+                peak_performance=peak_performance if content_interaction_videos else 0.0,
+                recent_performance=recent_performance if content_interaction_videos else 0.0,
+                overall_performance=overall_performance if content_interaction_videos else 0.0,
+                video_scores=video_scores if content_interaction_videos else []
             )
             
         except Exception as e:
@@ -371,6 +405,442 @@ class CreatorScoreCalculator:
         )
         
         return max(0.0, min(100.0, video_score))
+    
+    def _calculate_single_video_score_with_ai(self, video: VideoDetail, follower_count: int, ai_quality_scores: Dict[str, QualityScore]) -> float:
+        """计算单个视频的评分（集成AI质量评分）
+        
+        单视频评分公式：
+        Video Score = 内容互动数据 × 65% + 内容质量 × 35%
+        其中内容质量：有AI评分时使用AI评分，否则使用固定60分
+        
+        Args:
+            video: 视频详情
+            follower_count: 粉丝数量
+            ai_quality_scores: AI质量评分字典
+            
+        Returns:
+            单个视频评分 (0-100)
+        """
+        # 计算内容互动各项得分
+        view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
+        like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count)
+        comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count)
+        share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count)
+        save_score = self.content_calculator.calculate_save_score(
+            getattr(video, 'collect_count', 0), video.view_count
+        )
+        
+        # 计算内容互动总分（按权重）
+        content_interaction_score = (
+            view_score * 0.10 +      # 播放量权重10%
+            like_score * 0.15 +      # 点赞权重15%
+            comment_score * 0.30 +   # 评论权重30%
+            share_score * 0.30 +     # 分享权重30%
+            save_score * 0.15        # 保存权重15%
+        )
+        
+        # 获取内容质量分：优先使用AI评分，否则使用默认值
+        if video.video_id in ai_quality_scores:
+            content_quality_score = ai_quality_scores[video.video_id].total_score
+        else:
+            content_quality_score = self.content_quality_score
+        
+        # 单视频评分 = 内容互动数据 × 65% + 内容质量 × 35%
+        video_score = (
+            content_interaction_score * self.content_weight +
+            content_quality_score * self.content_quality_weight
+        )
+        
+        return max(0.0, min(100.0, video_score))
+    
+    def _calculate_final_score_with_ai(self,
+                                     account_quality: AccountQualityScore,
+                                     video_details: List[VideoDetail],
+                                     follower_count: int,
+                                     ai_quality_scores: Dict[str, QualityScore]) -> float:
+        """计算最终评分（集成AI质量评分）
+        
+        使用新的三维评分算法：
+        - 40% 峰值表现（最高分视频）
+        - 40% 近期状态（最近3个视频平均分）  
+        - 20% 整体水平（所有视频平均分）
+        然后乘以账户质量加权系数
+        
+        Args:
+            account_quality: 账户质量评分
+            video_details: 视频详情列表
+            follower_count: 粉丝数量
+            ai_quality_scores: AI质量评分字典
+            
+        Returns:
+            最终评分
+        """
+        if not video_details:
+            # 没有视频时，只使用固定的内容质量分数
+            base_score = self.content_quality_score * self.content_quality_weight
+            return base_score * account_quality.multiplier
+        
+        # 计算每个视频的评分（集成AI质量评分）
+        video_scores = []
+        for video in video_details:
+            video_score = self._calculate_single_video_score_with_ai(video, follower_count, ai_quality_scores)
+            video_scores.append(video_score)
+        
+        # 应用新的三维评分算法
+        n = len(video_scores)
+        
+        # 1. 峰值表现：取最高分
+        peak_performance = max(video_scores)
+        
+        # 2. 近期状态：最近3个视频的平均分
+        recent_videos_count = min(3, n)
+        recent_start_index = max(0, n - recent_videos_count)
+        recent_scores = video_scores[recent_start_index:]
+        recent_performance = sum(recent_scores) / len(recent_scores)
+        
+        # 3. 整体水平：所有视频的平均分
+        overall_performance = sum(video_scores) / n
+        
+        # 综合评分：40%峰值 + 40%近期 + 20%整体
+        base_score = (
+            0.4 * peak_performance +   # 40%看峰值表现
+            0.4 * recent_performance + # 40%看近期状态
+            0.2 * overall_performance  # 20%看整体水平
+        )
+        
+        # 应用账户质量加权
+        final_score = base_score * account_quality.multiplier
+        
+        return max(0.0, min(300.0, final_score))  # 最高300分（100 * 3.0倍数）
+    
+    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None) -> Dict[str, Any]:
+        """获取详细的评分分解信息，包含AI质量评分
+        
+        Args:
+            creator_score: 创作者评分对象
+            ai_quality_scores: AI质量评分字典
+            
+        Returns:
+            详细的评分分解信息
+        """
+        # 计算权重后的分数
+        follower_weighted = creator_score.account_quality.follower_score * 0.4
+        likes_weighted = creator_score.account_quality.likes_score * 0.4
+        posting_weighted = creator_score.account_quality.posting_score * 0.2
+        
+        # 计算内容互动权重后的分数
+        view_weighted = creator_score.content_interaction.view_score * 0.10
+        like_weighted = creator_score.content_interaction.like_score * 0.15
+        comment_weighted = creator_score.content_interaction.comment_score * 0.30
+        share_weighted = creator_score.content_interaction.share_score * 0.30
+        save_weighted = creator_score.content_interaction.save_score * 0.15
+        
+        # 获取AI质量评分的平均分
+        avg_ai_score = 60.0  # 默认值
+        if ai_quality_scores:
+            avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
+        
+        # 计算最终的内容互动和内容质量分数
+        content_interaction_final = creator_score.content_interaction.total_score * 0.65
+        content_quality_final = avg_ai_score * 0.35
+        
+        breakdown = {
+            "视频数量": creator_score.video_count,
+            "账户质量评分": {
+                "粉丝数量得分": f"{creator_score.account_quality.follower_score:.2f}",
+                "总点赞得分": f"{creator_score.account_quality.likes_score:.2f}",
+                "发布频率得分": f"{creator_score.account_quality.posting_score:.2f}",
+                "账户质量总分": f"{creator_score.account_quality.total_score:.2f}",
+                "质量加权系数": f"{creator_score.account_quality.multiplier:.3f}",
+                "发布频率详细计算": creator_score.account_quality.posting_details or {},
+                "详细计算过程": {
+                    "粉丝数量计算": f"{creator_score.account_quality.follower_score:.2f} × 40% = {follower_weighted:.2f}",
+                    "总点赞数计算": f"{creator_score.account_quality.likes_score:.2f} × 40% = {likes_weighted:.2f}",
+                    "发布频率计算": f"{creator_score.account_quality.posting_score:.2f} × 20% = {posting_weighted:.2f}",
+                    "账户质量总分": f"{follower_weighted:.2f} + {likes_weighted:.2f} + {posting_weighted:.2f} = {creator_score.account_quality.total_score:.2f}",
+                    "质量加权系数": f"根据账户质量总分计算得出 {creator_score.account_quality.multiplier:.3f}"
+                }
+            },
+            "内容互动评分": {
+                "播放量得分": f"{creator_score.content_interaction.view_score:.2f}",
+                "点赞得分": f"{creator_score.content_interaction.like_score:.2f}",
+                "评论得分": f"{creator_score.content_interaction.comment_score:.2f}",
+                "分享得分": f"{creator_score.content_interaction.share_score:.2f}",
+                "保存得分": f"{creator_score.content_interaction.save_score:.2f}",
+                "内容互动总分": f"{creator_score.content_interaction.total_score:.2f}",
+                "详细计算过程": {
+                    "播放量表现": f"{creator_score.content_interaction.view_score:.2f} × 10% = {view_weighted:.2f}",
+                    "点赞率表现": f"{creator_score.content_interaction.like_score:.2f} × 15% = {like_weighted:.2f}",
+                    "评论率表现": f"{creator_score.content_interaction.comment_score:.2f} × 30% = {comment_weighted:.2f}",
+                    "分享率表现": f"{creator_score.content_interaction.share_score:.2f} × 30% = {share_weighted:.2f}",
+                    "保存率表现": f"{creator_score.content_interaction.save_score:.2f} × 15% = {save_weighted:.2f}",
+                    "内容互动总分": f"{view_weighted:.2f} + {like_weighted:.2f} + {comment_weighted:.2f} + {share_weighted:.2f} + {save_weighted:.2f} = {creator_score.content_interaction.total_score:.2f}"
+                }
+            },
+            "AI视频质量评分": {},
+            "最终评分详细计算": {
+                "算法说明": "40%峰值表现 + 40%近期状态 + 20%整体水平",
+                "视频总数": f"{creator_score.video_count} 个",
+                "峰值表现": f"{getattr(creator_score, 'peak_performance', 0):.2f} × 40% = {getattr(creator_score, 'peak_performance', 0) * 0.4:.2f}",
+                "近期状态": f"{getattr(creator_score, 'recent_performance', 0):.2f} × 40% = {getattr(creator_score, 'recent_performance', 0) * 0.4:.2f}",
+                "整体水平": f"{getattr(creator_score, 'overall_performance', 0):.2f} × 20% = {getattr(creator_score, 'overall_performance', 0) * 0.2:.2f}",
+                "基础分数": f"{(getattr(creator_score, 'peak_performance', 0) * 0.4 + getattr(creator_score, 'recent_performance', 0) * 0.4 + getattr(creator_score, 'overall_performance', 0) * 0.2):.2f}",
+                "账户质量加权": f"基础分数 × {creator_score.account_quality.multiplier:.3f} = {creator_score.final_score:.2f}",
+                "最终评分": f"{creator_score.final_score:.2f}分",
+                "单视频评分公式详情": {
+                    "内容互动分数": f"{creator_score.content_interaction.total_score:.2f} × 65% = {content_interaction_final:.2f}",
+                    "内容质量分数": f"{avg_ai_score:.2f} × 35% = {content_quality_final:.2f}",
+                    "单视频基础分": f"{content_interaction_final:.2f} + {content_quality_final:.2f} = {content_interaction_final + content_quality_final:.2f}"
+                }
+            },
+            "权重配置": {
+                "内容互动权重": "65%",
+                "内容质量权重": "35%",
+                "内容质量分数来源": "AI智能评分"
+            }
+        }
+        
+        # 添加AI质量评分信息
+        if ai_quality_scores:
+            avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
+            breakdown["AI视频质量评分"] = {
+                "评分视频数": len(ai_quality_scores),
+                "平均AI质量分": f"{avg_ai_score:.1f}/100",
+                "最高AI质量分": f"{max(score.total_score for score in ai_quality_scores.values()):.1f}/100",
+                "最低AI质量分": f"{min(score.total_score for score in ai_quality_scores.values()):.1f}/100",
+                "说明": "AI智能评分系统",
+                "各视频详情": {}
+            }
+            
+            # 添加每个视频的详细AI评分
+            for video_id, ai_score in ai_quality_scores.items():
+                # 解析评分理由JSON
+                try:
+                    import json
+                    reasoning_json = json.loads(ai_score.reasoning)
+                    reasoning_display = reasoning_json
+                except json.JSONDecodeError:
+                    reasoning_display = ai_score.reasoning
+                
+                breakdown["AI视频质量评分"]["各视频详情"][video_id] = {
+                    "总分": f"{ai_score.total_score:.1f}/100",
+                    "总分计算": f"关键词{ai_score.keyword_score:.1f} + 原创性{ai_score.originality_score:.1f} + 清晰度{ai_score.clarity_score:.1f} + 垃圾识别{ai_score.spam_score:.1f} + 推广识别{ai_score.promotion_score:.1f} = {ai_score.total_score:.1f}",
+                    "关键词": f"{ai_score.keyword_score:.1f}/60",
+                    "原创性": f"{ai_score.originality_score:.1f}/20",
+                    "清晰度": f"{ai_score.clarity_score:.1f}/10",
+                    "垃圾识别": f"{ai_score.spam_score:.1f}/5",
+                    "推广识别": f"{ai_score.promotion_score:.1f}/5",
+                    "评分理由": reasoning_display
+                }
+        else:
+            breakdown["AI视频质量评分"] = {
+                "评分视频数": 0,
+                "说明": "没有匹配关键词的视频或字幕提取失败，无AI评分数据"
+            }
+        
+        return breakdown
+    
+    def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None) -> tuple[CreatorScore, Dict[str, QualityScore]]:
+        """通过用户ID计算创作者评分并返回AI质量评分（用于Web界面）
+        
+        Args:
+            user_id: TikTok用户ID
+            video_count: 获取的视频数量，默认100个用于内容互动分计算
+            keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            
+        Returns:
+            (创作者评分对象, AI质量评分字典)
+        """
+        try:
+            # 1. 使用传入的user_id作为secUid（因为调用方已经转换过了）
+            sec_uid = user_id
+            print(f"✅ 使用secUid: {sec_uid[:20]}...")
+            
+            # 2. 🔄 使用优化的API流程
+            print(f"🚀 开始使用优化的API调用流程")
+            
+            # 阶段1：获取账户质量分数据（最近3个月，不调用大模型）
+            print(f"📊 阶段1: 获取账户质量分计算数据")
+            account_quality_videos = self.improved_flow.fetch_videos_for_account_quality(sec_uid)
+            
+            # 阶段2：获取内容互动分数据并对匹配关键词的视频进行AI评分
+            print(f"🎯 阶段2: 获取内容互动分计算数据并进行AI质量评分")
+            if keyword:
+                print(f"   🔍 关键词筛选: '{keyword}'")
+            else:
+                print(f"   📋 无关键词筛选，获取前{video_count}条视频")
+            
+            content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
+                sec_uid, keyword=keyword, max_videos=video_count
+            )
+            
+            # 数据获取结果统计
+            print(f"✅ 账户质量分计算: 获取 {len(account_quality_videos)} 个视频数据（最近3个月）")
+            print(f"✅ 内容互动分计算: 获取 {len(content_interaction_videos)} 个视频数据（最近{video_count}条）")
+            print(f"🤖 AI质量评分: 完成 {len(ai_quality_scores)} 个视频的评分")
+            
+            # 如果最近三个月没有视频数据，仍然要获取用户档案信息来计算账户质量分
+            if not account_quality_videos:
+                print(f"⚠️  用户 {user_id} 最近三个月没有视频数据，但仍会计算账户质量分（粉丝数、总点赞数）")
+            
+            # 3. 获取用户档案信息
+            print(f"📡 API调用: 获取用户档案信息")
+            try:
+                user_profile = self.api_client.fetch_user_profile(sec_uid)
+                print(f"✅ 成功获取用户档案: {user_profile.username}")
+                print(f"📊 用户数据: 粉丝数 {user_profile.follower_count}, 总点赞 {user_profile.total_likes}")
+            except Exception as e:
+                print(f"⚠️ 无法获取详细用户档案，使用基本信息: {str(e)}")
+                # 创建基本用户档案
+                user_profile = UserProfile(
+                    user_id=user_id,
+                    username=f"user_{user_id}",
+                    display_name=f"user_{user_id}",
+                    follower_count=0,
+                    following_count=0,
+                    total_likes=sum(video.like_count for video in content_interaction_videos),
+                    video_count=len(content_interaction_videos),
+                    bio="",
+                    avatar_url="",
+                    verified=False
+                )
+            
+            # 4. 计算账户质量评分
+            print(f"\n🧮 计算账户质量评分")
+            print(f"📋 账户质量评分包含三个维度:")
+            print(f"   • 粉丝数量评分 (权重40%)")
+            print(f"   • 总点赞数评分 (权重40%)")
+            print(f"   • 发布频率评分 (权重20%) - 基于最近三个月的所有作品")
+            
+            account_quality = self.account_calculator.calculate_account_quality(
+                user_profile, account_quality_videos  # 使用最近3个月的视频数据
+            )
+            
+            print(f"📊 账户质量评分详情:")
+            print(f"   • 粉丝数量: {user_profile.follower_count:,} → 得分: {account_quality.follower_score:.2f}/100")
+            print(f"   • 总点赞数: {user_profile.total_likes:,} → 得分: {account_quality.likes_score:.2f}/100")
+            print(f"   • 发布频率: 得分: {account_quality.posting_score:.2f}/100")
+            print(f"   • 账户质量总分: {account_quality.total_score:.2f}/100")
+            print(f"   • 质量加权系数: {account_quality.multiplier:.3f}")
+            
+            # 5. 计算内容互动评分
+            print(f"\n🧮 计算内容互动评分")
+            if keyword:
+                print(f"📋 内容互动评分包含五个维度（基于最近{video_count}条视频中关键词'{keyword}'匹配的{len(content_interaction_videos)}个作品）:")
+            else:
+                print(f"📋 内容互动评分包含五个维度（基于最近{video_count}条视频中的{len(content_interaction_videos)}个作品）:")
+            print(f"   • 播放量表现 (权重10%)")
+            print(f"   • 点赞率表现 (权重15%)")
+            print(f"   • 评论率表现 (权重30%)")
+            print(f"   • 分享率表现 (权重30%)")
+            print(f"   • 保存率表现 (权重15%)")
+            
+            content_interaction = self.content_calculator.calculate_weighted_content_score(
+                content_interaction_videos, user_profile.follower_count  # 使用新的API流程获取的视频数据
+            )
+            
+            print(f"📊 内容互动评分详情:")
+            print(f"   • 播放量表现: {content_interaction.view_score:.2f}/100")
+            print(f"   • 点赞率表现: {content_interaction.like_score:.2f}/100")
+            print(f"   • 评论率表现: {content_interaction.comment_score:.2f}/100")
+            print(f"   • 分享率表现: {content_interaction.share_score:.2f}/100")
+            print(f"   • 保存率表现: {content_interaction.save_score:.2f}/100")
+            print(f"   • 内容互动总分: {content_interaction.total_score:.2f}/100")
+            
+            # 6. 计算最终评分
+            print(f"\n🧮 计算最终评分")
+            print(f"📋 新主评分公式:")
+            print(f"   TikTok Creator Score = (40%峰值表现 + 40%近期状态 + 20%整体水平) × 账户质量加权")
+            print(f"   其中: 每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%")
+            print(f"   内容质量固定为60分")
+            
+            # 6. 🤖 集成AI质量评分到最终计算
+            print(f"\n🤖 AI视频质量评分集成")
+            if ai_quality_scores:
+                avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
+                print(f"📊 AI质量评分统计:")
+                print(f"   • 评分视频数: {len(ai_quality_scores)}")
+                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (替代默认60分)")
+                print(f"   • 最高AI质量分: {max(score.total_score for score in ai_quality_scores.values()):.1f}/100")
+                print(f"   • 最低AI质量分: {min(score.total_score for score in ai_quality_scores.values()):.1f}/100")
+                
+                # 显示每个视频的AI评分详情
+                print(f"📋 各视频AI质量评分详情:")
+                for video_id, ai_score in ai_quality_scores.items():
+                    print(f"   • 视频 {video_id}: {ai_score.total_score:.1f}/100")
+                    print(f"     - 关键词: {ai_score.keyword_score:.1f}/60")
+                    print(f"     - 原创性: {ai_score.originality_score:.1f}/20") 
+                    print(f"     - 清晰度: {ai_score.clarity_score:.1f}/10")
+                    print(f"     - 垃圾识别: {ai_score.spam_score:.1f}/5")
+                    print(f"     - 推广识别: {ai_score.promotion_score:.1f}/5")
+            else:
+                print(f"⚠️  没有AI质量评分数据，使用默认内容质量分: {self.content_quality_score}/100")
+                print(f"   • 原因: 没有匹配关键词的视频或字幕提取失败")
+            
+            final_score = self._calculate_final_score_with_ai(
+                account_quality, content_interaction_videos, user_profile.follower_count, ai_quality_scores
+            )
+            
+            # 计算基础分数用于显示（使用新算法）
+            if content_interaction_videos:
+                video_scores = []
+                for video in content_interaction_videos:
+                    video_score = self._calculate_single_video_score_with_ai(video, user_profile.follower_count, ai_quality_scores)
+                    video_scores.append(video_score)
+                
+                n = len(video_scores)
+                peak_performance = max(video_scores)
+                recent_videos_count = min(3, n)
+                recent_start_index = max(0, n - recent_videos_count)
+                recent_scores = video_scores[recent_start_index:]
+                recent_performance = sum(recent_scores) / len(recent_scores)
+                overall_performance = sum(video_scores) / n
+                
+                base_score = (
+                    0.4 * peak_performance +   # 40%看峰值表现
+                    0.4 * recent_performance + # 40%看近期状态
+                    0.2 * overall_performance     # 20%看整体水平
+                )
+            else:
+                base_score = self.content_quality_score * self.content_quality_weight
+                peak_performance = recent_performance = overall_performance = 0.0
+            
+            print(f"📊 最终评分计算详情:")
+            if content_interaction_videos:
+                print(f"   • 视频总数: {len(content_interaction_videos)} 个")
+                print(f"   • 峰值表现: {peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}")
+                print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_scores)}条视频)")
+                print(f"   • 整体水平: {overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有视频)")
+                print(f"   • 基础分数: {base_score:.2f}")
+                print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
+                if ai_quality_scores:
+                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分替代默认60分")
+            else:
+                print(f"   • 无视频数据，使用默认内容质量分数: {self.content_quality_score:.2f}")
+                print(f"   • 基础分数: {base_score:.2f}")
+                print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
+            print(f"   • 最终评分: {final_score:.2f}")
+            
+            creator_score = CreatorScore(
+                user_id=user_profile.user_id,
+                username=user_profile.username,
+                account_quality=account_quality,
+                content_interaction=content_interaction,
+                final_score=final_score,
+                video_count=len(content_interaction_videos),  # 使用新的视频数据
+                calculated_at=datetime.now(),
+                # 新算法相关字段
+                peak_performance=peak_performance if content_interaction_videos else 0.0,
+                recent_performance=recent_performance if content_interaction_videos else 0.0,
+                overall_performance=overall_performance if content_interaction_videos else 0.0,
+                video_scores=video_scores if content_interaction_videos else []
+            )
+            
+            return creator_score, ai_quality_scores
+            
+        except Exception as e:
+            logger.error(f"通过用户ID {user_id} 计算评分时发生错误: {e}")
+            raise
     
     def _calculate_final_score(self,
                              account_quality: AccountQualityScore,
@@ -465,198 +935,3 @@ class CreatorScoreCalculator:
                 
         return results
         
-    def get_score_breakdown(self, creator_score: CreatorScore) -> dict:
-        """获取评分详细分解
-        
-        Args:
-            creator_score: 创作者评分对象
-            
-        Returns:
-            评分分解字典
-        """
-        account_quality = creator_score.account_quality
-        content_interaction = creator_score.content_interaction
-        
-        # 获取发布频率详细计算过程
-        posting_details = self._get_posting_score_details(creator_score)
-        
-        # 获取账户质量评分详细计算过程
-        account_quality_details = self._get_account_quality_details(creator_score)
-        
-        # 获取内容互动评分详细计算过程
-        content_interaction_details = self._get_content_interaction_details(creator_score)
-        
-        # 获取最终评分详细计算过程
-        final_score_details = self._get_final_score_details(creator_score)
-        
-        return {
-            "用户名": creator_score.username,
-            "最终评分": round(creator_score.final_score, 2),
-            "视频数量": creator_score.video_count,
-            "账户质量评分": {
-                "粉丝数量得分": round(account_quality.follower_score, 2),
-                "总点赞得分": round(account_quality.likes_score, 2),
-                "发布频率得分": round(account_quality.posting_score, 2),
-                "发布频率详细计算": posting_details,
-                "账户质量总分": round(account_quality.total_score, 2),
-                "质量加权系数": account_quality.multiplier,
-                "详细计算过程": account_quality_details
-            },
-            "内容互动评分": {
-                "播放量得分": round(content_interaction.view_score, 2),
-                "点赞得分": round(content_interaction.like_score, 2),
-                "评论得分": round(content_interaction.comment_score, 2),
-                "分享得分": round(content_interaction.share_score, 2),
-                "内容互动总分": round(content_interaction.total_score, 2),
-                "详细计算过程": content_interaction_details
-            },
-            "最终评分详细计算": final_score_details,
-            "权重配置": {
-                "内容互动权重": f"{self.content_weight * 100}%",
-                "内容质量权重": f"{self.content_quality_weight * 100}%",
-                "内容质量固定分数": self.content_quality_score
-            }
-        }
-        
-    def compare_creators(self, creator_scores: List[CreatorScore]) -> List[dict]:
-        """比较多个创作者的评分
-        
-        Args:
-            creator_scores: 创作者评分列表
-            
-        Returns:
-            排序后的创作者比较列表
-        """
-        # 按最终评分排序
-        sorted_scores = sorted(
-            creator_scores, 
-            key=lambda x: x.final_score, 
-            reverse=True
-        )
-        
-        comparison = []
-        for i, score in enumerate(sorted_scores, 1):
-            comparison.append({
-                "排名": i,
-                "用户名": score.username,
-                "最终评分": round(score.final_score, 2),
-                "账户质量分": round(score.account_quality.total_score, 2),
-                "内容互动分": round(score.content_interaction.total_score, 2),
-                "质量加权系数": score.account_quality.multiplier,
-                "视频数量": score.video_count
-            })
-            
-        return comparison
-    
-    def _get_posting_score_details(self, creator_score: CreatorScore) -> dict:
-        """获取发布频率得分的详细计算过程
-        
-        Args:
-            creator_score: 创作者评分对象
-            
-        Returns:
-            发布频率详细计算信息
-        """
-        # 从账户质量评分中获取发布频率的详细计算信息
-        if creator_score.account_quality.posting_details:
-            return creator_score.account_quality.posting_details
-        
-        # 如果没有详细信息，返回基本信息
-        return {
-            "计算类型": "无详细信息",
-            "说明": "发布频率详细计算信息不可用"
-        }
-    
-    def _get_account_quality_details(self, creator_score: CreatorScore) -> dict:
-        """获取账户质量评分的详细计算过程
-        
-        Args:
-            creator_score: 创作者评分对象
-            
-        Returns:
-            账户质量评分详细计算信息
-        """
-        account_quality = creator_score.account_quality
-        
-        # 模拟从用户档案获取数据（实际应用中应该从真实数据获取）
-        follower_count = int(account_quality.follower_score * 10000)  # 估算粉丝数
-        total_likes = int(account_quality.likes_score * 500000)  # 估算总点赞数
-        
-        return {
-            "粉丝数量计算": f"{follower_count:,} → 得分: {account_quality.follower_score:.2f} × 40% = {account_quality.follower_score * 0.4:.2f}",
-            "总点赞数计算": f"{total_likes:,} → 得分: {account_quality.likes_score:.2f} × 40% = {account_quality.likes_score * 0.4:.2f}",
-            "发布频率计算": f"得分: {account_quality.posting_score:.2f} × 20% = {account_quality.posting_score * 0.2:.2f}",
-            "账户质量总分": f"{account_quality.total_score:.2f}",
-            "质量加权系数": f"{account_quality.multiplier:.3f}"
-        }
-    
-    def _get_content_interaction_details(self, creator_score: CreatorScore) -> dict:
-        """获取内容互动评分的详细计算过程
-        
-        Args:
-            creator_score: 创作者评分对象
-            
-        Returns:
-            内容互动评分详细计算信息
-        """
-        content_interaction = creator_score.content_interaction
-        
-        return {
-            "播放量表现": f"{content_interaction.view_score:.2f} × 10% = {content_interaction.view_score * 0.1:.2f}",
-            "点赞率表现": f"{content_interaction.like_score:.2f} × 15% = {content_interaction.like_score * 0.15:.2f}",
-            "评论率表现": f"{content_interaction.comment_score:.2f} × 30% = {content_interaction.comment_score * 0.3:.2f}",
-            "分享率表现": f"{content_interaction.share_score:.2f} × 30% = {content_interaction.share_score * 0.30:.2f}",
-            "保存率表现": f"{content_interaction.save_score:.2f} × 15% = {content_interaction.save_score * 0.15:.2f}",
-            "内容互动总分": f"{content_interaction.total_score:.2f}"
-        }
-    
-    def _get_final_score_details(self, creator_score: CreatorScore) -> dict:
-        """获取最终评分的详细计算过程
-        
-        Args:
-            creator_score: 创作者评分对象
-            
-        Returns:
-            最终评分详细计算信息
-        """
-        if creator_score.video_count == 0:
-            # 无视频数据的情况
-            content_quality_score = self.content_quality_score
-            base_score = content_quality_score * self.content_quality_weight
-            multiplier = creator_score.account_quality.multiplier
-            final_score = creator_score.final_score
-            
-            return {
-                "算法说明": "新主评分公式: 40%峰值表现 + 40%近期状态 + 20%整体水平",
-                "视频数据": "无视频数据，使用默认内容质量分数",
-                "内容质量分数": f"{content_quality_score:.2f}",
-                "基础分数": f"{base_score:.2f}",
-                "账户质量加权": f"{base_score:.2f} × {multiplier:.3f} = {final_score:.2f}",
-                "最终评分": f"{final_score:.2f}"
-            }
-        else:
-            # 有视频数据的情况
-            peak_performance = creator_score.peak_performance
-            recent_performance = creator_score.recent_performance
-            overall_performance = creator_score.overall_performance
-            video_count = creator_score.video_count
-            recent_count = min(3, video_count)
-            
-            base_score = (
-                0.4 * peak_performance +
-                0.4 * recent_performance +
-                0.2 * overall_performance
-            )
-            multiplier = creator_score.account_quality.multiplier
-            final_score = creator_score.final_score
-            
-            return {
-                "算法说明": "新主评分公式: 40%峰值表现 + 40%近期状态 + 20%整体水平",
-                "视频总数": f"{video_count}个视频",
-                "峰值表现": f"{peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}",
-                "近期状态": f"{recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{recent_count}条视频)",
-                "整体水平": f"{overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有视频)",
-                "基础分数": f"{base_score:.2f}",
-                "账户质量加权": f"{base_score:.2f} × {multiplier:.3f} = {final_score:.2f}",
-                "最终评分": f"{final_score:.2f}"
-            }

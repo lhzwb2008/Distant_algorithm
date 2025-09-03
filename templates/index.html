@@ -314,7 +314,7 @@
                             <h4>📊 详细计算过程</h4>
                             
                             <div class="breakdown-section">
-                                <h5>🏆 新算法最终评分计算</h5>
+                                <h5>🏆 最终评分计算过程</h5>
                                 <div class="breakdown-item">
                                     <span class="label">算法说明:</span>
                                     <span class="value">${breakdown.最终评分详细计算.算法说明}</span>
@@ -323,6 +323,18 @@
                                     <span class="label">视频数据:</span>
                                     <span class="value">${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</span>
                                 </div>
+                                
+                                <!-- 单视频评分公式详细计算 -->
+                                <div class="posting-details" style="margin: 12px 0; padding: 10px; background-color: #e3f2fd; border-radius: 6px; border-left: 4px solid #2196f3;">
+                                    <div style="font-weight: bold; color: #1976d2; margin-bottom: 8px;">📋 单视频评分公式计算详情:</div>
+                                    <div style="font-size: 14px; line-height: 1.6;">
+                                        <div><strong>内容互动分数:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.内容互动分数}</div>
+                                        <div><strong>内容质量分数:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.内容质量分数}</div>
+                                        <div><strong>单视频基础分:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.单视频基础分}</div>
+                                        <div style="margin-top: 8px; color: #666; font-style: italic;">公式: 内容互动数据 × 65% + 内容质量 × 35%</div>
+                                    </div>
+                                </div>
+                                
                                 <div class="breakdown-item">
                                     <span class="label">峰值表现:</span>
                                     <span class="value">${breakdown.最终评分详细计算.峰值表现 || 'N/A'}</span>
@@ -353,36 +365,15 @@
                                 <h5>👤 账户质量评分 (${breakdown.账户质量评分.账户质量总分}/100)</h5>
                                 <div class="breakdown-item">
                                     <span class="label">粉丝数量得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.粉丝数量得分}/100</span>
+                                    <span class="value">${breakdown.账户质量评分.粉丝数量得分}/100 (权重40%)</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">总点赞得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.总点赞得分}/100</span>
+                                    <span class="value">${breakdown.账户质量评分.总点赞得分}/100 (权重40%)</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">发布频率得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.发布频率得分}/100</span>
-                                </div>
-                                <div class="posting-details" style="margin-left: 20px; margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
-                                    <div style="font-weight: bold; color: #007bff; margin-bottom: 8px;">📊 发布频率详细计算过程:</div>
-                                    <div style="font-size: 14px; line-height: 1.6;">
-                                        ${breakdown.账户质量评分.发布频率详细计算.计算类型 ? `<div><strong>计算类型:</strong> ${breakdown.账户质量评分.发布频率详细计算.计算类型}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.总视频数 ? `<div><strong>总视频数:</strong> ${breakdown.账户质量评分.发布频率详细计算.总视频数}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.最近4周视频数 ? `<div><strong>最近4周视频数:</strong> ${breakdown.账户质量评分.发布频率详细计算.最近4周视频数}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.最早视频时间 ? `<div><strong>最早视频时间:</strong> ${breakdown.账户质量评分.发布频率详细计算.最早视频时间}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.最晚视频时间 ? `<div><strong>最晚视频时间:</strong> ${breakdown.账户质量评分.发布频率详细计算.最晚视频时间}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.时间跨度 ? `<div><strong>时间跨度:</strong> ${breakdown.账户质量评分.发布频率详细计算.时间跨度}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.周数计算 ? `<div><strong>周数计算:</strong> ${breakdown.账户质量评分.发布频率详细计算.周数计算}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.发布频率 ? `<div><strong>发布频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.发布频率}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.估算发布频率 ? `<div><strong>估算发布频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.估算发布频率}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.理想频率 ? `<div><strong>理想频率:</strong> ${breakdown.账户质量评分.发布频率详细计算.理想频率}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.偏差 ? `<div><strong>偏差:</strong> ${breakdown.账户质量评分.发布频率详细计算.偏差}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.扣分 ? `<div><strong>扣分:</strong> ${breakdown.账户质量评分.发布频率详细计算.扣分}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.最终得分 ? `<div><strong>最终得分:</strong> ${breakdown.账户质量评分.发布频率详细计算.最终得分}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.假设时间跨度 ? `<div><strong>假设时间跨度:</strong> ${breakdown.账户质量评分.发布频率详细计算.假设时间跨度}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.结果 ? `<div><strong>结果:</strong> ${breakdown.账户质量评分.发布频率详细计算.结果}</div>` : ''}
-                                        ${breakdown.账户质量评分.发布频率详细计算.说明 ? `<div style="margin-top: 8px; color: #6c757d; font-style: italic;">${breakdown.账户质量评分.发布频率详细计算.说明}</div>` : ''}
-                                    </div>
+                                    <span class="value">${breakdown.账户质量评分.发布频率得分}/100 (权重20%)</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">质量加权系数:</span>
@@ -396,7 +387,7 @@
                                         <div><strong>粉丝数量:</strong> ${breakdown.账户质量评分.详细计算过程.粉丝数量计算}</div>
                                         <div><strong>总点赞数:</strong> ${breakdown.账户质量评分.详细计算过程.总点赞数计算}</div>
                                         <div><strong>发布频率:</strong> ${breakdown.账户质量评分.详细计算过程.发布频率计算}</div>
-                                        <div><strong>账户质量总分:</strong> ${breakdown.账户质量评分.详细计算过程.账户质量总分}</div>
+                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6;"><strong>账户质量总分:</strong> ${breakdown.账户质量评分.详细计算过程.账户质量总分}</div>
                                         <div><strong>质量加权系数:</strong> ${breakdown.账户质量评分.详细计算过程.质量加权系数}</div>
                                     </div>
                                 </div>
@@ -405,24 +396,24 @@
                             <div class="breakdown-section">
                                 <h5>📱 内容互动评分 (${breakdown.内容互动评分.内容互动总分}/100)</h5>
                                 <div class="breakdown-item">
-                                    <span class="label">播放量得分 (权重10%):</span>
-                                    <span class="value">${breakdown.内容互动评分.播放量得分}/100</span>
+                                    <span class="label">播放量得分:</span>
+                                    <span class="value">${breakdown.内容互动评分.播放量得分}/100 (权重10%)</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">点赞得分 (权重15%):</span>
-                                    <span class="value">${breakdown.内容互动评分.点赞得分}/100</span>
+                                    <span class="label">点赞得分:</span>
+                                    <span class="value">${breakdown.内容互动评分.点赞得分}/100 (权重15%)</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">评论得分 (权重30%):</span>
-                                    <span class="value">${breakdown.内容互动评分.评论得分}/100</span>
+                                    <span class="label">评论得分:</span>
+                                    <span class="value">${breakdown.内容互动评分.评论得分}/100 (权重30%)</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">分享得分 (权重30%):</span>
-                                    <span class="value">${breakdown.内容互动评分.分享得分}/100</span>
+                                    <span class="label">分享得分:</span>
+                                    <span class="value">${breakdown.内容互动评分.分享得分}/100 (权重30%)</span>
                                 </div>
                                 <div class="breakdown-item">
-                                    <span class="label">保存得分 (权重15%):</span>
-                                    <span class="value">${breakdown.内容互动评分.保存得分 || 'N/A'}/100</span>
+                                    <span class="label">保存得分:</span>
+                                    <span class="value">${breakdown.内容互动评分.保存得分 || 'N/A'}/100 (权重15%)</span>
                                 </div>
                                 
                                 <!-- 内容互动评分详细计算过程 -->
@@ -434,57 +425,81 @@
                                         <div><strong>评论率表现:</strong> ${breakdown.内容互动评分.详细计算过程.评论率表现}</div>
                                         <div><strong>分享率表现:</strong> ${breakdown.内容互动评分.详细计算过程.分享率表现}</div>
                                         <div><strong>保存率表现:</strong> ${breakdown.内容互动评分.详细计算过程.保存率表现 || 'N/A'}</div>
-                                        <div><strong>内容互动总分:</strong> ${breakdown.内容互动评分.详细计算过程.内容互动总分}</div>
+                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6;"><strong>内容互动总分:</strong> ${breakdown.内容互动评分.详细计算过程.内容互动总分}</div>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="breakdown-section">
-                                <h5>⚖️ 权重配置</h5>
-                                <div class="breakdown-item">
-                                    <span class="label">内容互动权重:</span>
-                                    <span class="value">${breakdown.权重配置.内容互动权重}</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">内容质量权重:</span>
-                                    <span class="value">${breakdown.权重配置.内容质量权重}</span>
-                                </div>
+                                <h5>🤖 AI视频质量评分</h5>
+                                ${breakdown.AI视频质量评分.评分视频数 > 0 ? `
+                                    <div class="breakdown-item">
+                                        <span class="label">评分视频数:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.评分视频数}</span>
+                                    </div>
+                                    <div class="breakdown-item">
+                                        <span class="label">平均AI质量分:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.平均AI质量分}</span>
+                                    </div>
+                                    <div class="breakdown-item">
+                                        <span class="label">最高AI质量分:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.最高AI质量分}</span>
+                                    </div>
+                                    <div class="breakdown-item">
+                                        <span class="label">最低AI质量分:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.最低AI质量分}</span>
+                                    </div>
+                                    <div class="breakdown-item">
+                                        <span class="label">说明:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.说明}</span>
+                                    </div>
+                                    
+                                    <!-- AI评分详情 -->
+                                    <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #e8f5e8; border-radius: 6px; border-left: 4px solid #28a745;">
+                                        <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">🤖 各视频AI质量评分详情:</div>
+                                        <div style="font-size: 14px; line-height: 1.6;">
+                                            ${Object.entries(breakdown.AI视频质量评分.各视频详情 || {}).map(([videoId, score]) => `
+                                                <div style="margin-bottom: 12px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
+                                                    <div style="font-weight: bold; color: #495057;">视频 ${videoId}:</div>
+                                                    <div style="margin-left: 10px;">
+                                                        <div><strong>总分:</strong> ${score.总分}</div>
+                                                        ${score.总分计算 ? `<div style="color: #6c757d; font-size: 12px;"><strong>计算过程:</strong> ${score.总分计算}</div>` : ''}
+                                                        <div><strong>关键词:</strong> ${score.关键词}</div>
+                                                        <div><strong>原创性:</strong> ${score.原创性}</div>
+                                                        <div><strong>清晰度:</strong> ${score.清晰度}</div>
+                                                        <div><strong>垃圾识别:</strong> ${score.垃圾识别}</div>
+                                                        <div><strong>推广识别:</strong> ${score.推广识别}</div>
+                                                        <div style="margin-top: 8px;">
+                                                            <strong>详细评分理由:</strong>
+                                                            <div style="margin-top: 4px; padding: 6px; background-color: #ffffff; border-radius: 3px; font-size: 12px; line-height: 1.4;">
+                                                                ${typeof score.评分理由 === 'object' ? 
+                                                                    Object.entries(score.评分理由).map(([key, value]) => 
+                                                                        `<div style="margin-bottom: 4px;"><strong>${key.replace('_reasoning', '').replace('_', ' ')}:</strong> ${value}</div>`
+                                                                    ).join('') : 
+                                                                    score.评分理由
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div class="breakdown-item">
+                                        <span class="label">评分视频数:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.评分视频数}</span>
+                                    </div>
+                                    <div class="breakdown-item">
+                                        <span class="label">说明:</span>
+                                        <span class="value">${breakdown.AI视频质量评分.说明}</span>
+                                    </div>
+                                `}
                             </div>
                             
-                            <div class="breakdown-section">
-                                <h5>🧮 新算法详细说明</h5>
-                                <div class="breakdown-item">
-                                    <span class="label">算法说明:</span>
-                                    <span class="value">${breakdown.最终评分详细计算.算法说明}</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">单视频评分公式:</span>
-                                    <span class="value">每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">内容质量固定分数:</span>
-                                    <span class="value">${breakdown.权重配置.内容质量固定分数}分</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">内容互动权重配置:</span>
-                                    <span class="value">播放10% + 点赞15% + 评论30% + 分享30% + 保存15%</span>
-                                </div>
-                                
-                                <!-- 新算法详细计算过程 -->
-                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
-                                    <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📊 新算法计算详情:</div>
-                                    <div style="font-size: 14px; line-height: 1.6;">
-                                        <div><strong>算法说明:</strong> ${breakdown.最终评分详细计算.算法说明}</div>
-                                        <div><strong>视频数据:</strong> ${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</div>
-                                        ${breakdown.最终评分详细计算.峰值表现 ? `<div><strong>峰值表现:</strong> ${breakdown.最终评分详细计算.峰值表现}</div>` : ''}
-                                        ${breakdown.最终评分详细计算.近期状态 ? `<div><strong>近期状态:</strong> ${breakdown.最终评分详细计算.近期状态}</div>` : ''}
-                                        ${breakdown.最终评分详细计算.整体水平 ? `<div><strong>整体水平:</strong> ${breakdown.最终评分详细计算.整体水平}</div>` : ''}
-                                        <div><strong>基础分数:</strong> ${breakdown.最终评分详细计算.基础分数}</div>
-                                        <div><strong>账户质量加权:</strong> ${breakdown.最终评分详细计算.账户质量加权}</div>
-                                        <div><strong>最终评分:</strong> ${breakdown.最终评分详细计算.最终评分}</div>
-                                    </div>
-                                </div>
-                            </div>
+
+                            
+
                         </div>
                     `;
                     

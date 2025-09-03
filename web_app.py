@@ -49,10 +49,10 @@ def calculate_score():
             }), 404
         
         # 计算评分
-        creator_score = calculator.calculate_creator_score_by_user_id(sec_uid, keyword=keyword if keyword else None)
+        creator_score, ai_quality_scores = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
         
-        # 获取详细的评分分解
-        score_breakdown = calculator.get_score_breakdown(creator_score)
+        # 获取详细的评分分解（包含AI质量评分）
+        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores)
         
         return jsonify({
             'success': True,
