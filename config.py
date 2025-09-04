@@ -18,7 +18,7 @@ class Config:
     # TiKhub API配置
     # 注意：TIKHUB_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
-    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 默认使用新URL
+    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.io')  # 默认使用新URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
     TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
     
