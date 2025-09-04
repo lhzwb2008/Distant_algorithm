@@ -16,13 +16,15 @@ class Config:
     """系统配置类"""
     
     # TiKhub API配置
-    TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY', '9aNqF1ot61c1hRo5gES7n3RtxF4KrrzilJlp6zzas2cZ2W1UcfNUn1q0BA==')
-    TIKHUB_BASE_URL = 'https://api.tikhub.dev'  # 强制使用新URL
+    # 注意：TIKHUB_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
+    TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
+    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 默认使用新URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
     TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
     
     # OpenRouter API配置 - 用于视频质量评分
-    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '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')
+    # 注意：OPENROUTER_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
+    OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
     OPENROUTER_BASE_URL = os.getenv('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
     OPENROUTER_MODEL = os.getenv('OPENROUTER_MODEL', 'openai/gpt-4o-mini')
     OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
