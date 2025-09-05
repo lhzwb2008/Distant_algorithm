@@ -11,6 +11,7 @@
 1. **🔑 立即更换API密钥**
    - TiKhub: https://tikhub.io
    - OpenRouter: https://openrouter.ai
+   - OpenAI: https://platform.openai.com/api-keys
    
 2. **🗑️ 从Git中移除敏感文件**
    ```bash
