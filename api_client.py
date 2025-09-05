@@ -441,6 +441,50 @@ class TiKhubAPIClient:
         logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
         return video_details
     
+    def get_video_download_url(self, video_id: str) -> Optional[str]:
+        """获取视频下载链接（无水印版本）
+        
+        Args:
+            video_id: 视频ID
+            
+        Returns:
+            视频下载URL，失败时返回None
+        """
+        try:
+            logger.info(f"获取视频 {video_id} 的下载链接")
+            
+            # 调用fetch_one_video API
+            params = {
+                'aweme_id': video_id,
+                'region': 'US',
+                'priority_region': 'US'
+            }
+            
+            response = self._make_request('/api/v1/tiktok/app/v3/fetch_one_video', params)
+            
+            if response and 'aweme_detail' in response:
+                aweme_detail = response['aweme_detail']
+                
+                # 获取视频下载链接
+                video_info = aweme_detail.get('video', {})
+                download_info = video_info.get('download_no_watermark_addr', {})
+                url_list = download_info.get('url_list', [])
+                
+                if url_list and len(url_list) > 0:
+                    download_url = url_list[0]  # 取第一个链接
+                    logger.info(f"视频 {video_id} 下载链接获取成功")
+                    return download_url
+                else:
+                    logger.warning(f"视频 {video_id} 没有可用的下载链接")
+                    return None
+            else:
+                logger.warning(f"视频 {video_id} 详情获取失败")
+                return None
+                
+        except Exception as e:
+            logger.error(f"获取视频 {video_id} 下载链接失败: {e}")
+            return None
+    
     def fetch_user_videos_last_3_months(self, user_id: str, max_pages: int = 20, keyword: str = None) -> List[VideoDetail]:
         """获取用户最近三个月的所有视频（支持分页）
         

@@ -30,6 +30,11 @@ class Config:
     OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
     OPENROUTER_TEMPERATURE = float(os.getenv('OPENROUTER_TEMPERATURE', '0.3'))
     OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
+
+    # OpenAI API配置 - 用于音频转文本（Whisper）
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    OPENAI_WHISPER_MODEL = os.getenv('OPENAI_WHISPER_MODEL', 'whisper-1')
+    OPENAI_REQUEST_TIMEOUT = int(os.getenv('OPENAI_REQUEST_TIMEOUT', '120'))  # 音频处理需要更长时间
     
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
