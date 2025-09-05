@@ -32,6 +32,12 @@ class Config:
     OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
     OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv('OPENROUTER_CONCURRENT_REQUESTS', '20'))  # 并发请求数
     
+    # Google Gemini API配置 - 用于视频内容分析（当字幕提取关闭时使用）
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    GOOGLE_MODEL = os.getenv('GOOGLE_MODEL', 'models/gemini-2.5-flash')
+    GOOGLE_REQUEST_TIMEOUT = int(os.getenv('GOOGLE_REQUEST_TIMEOUT', '120'))  # 视频处理需要更长时间
+    GOOGLE_CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_CONCURRENT_REQUESTS', '5'))  # Google API并发数，建议较低
+    
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
     CONTENT_INTERACTION_MAX_VIDEOS = int(os.getenv('CONTENT_INTERACTION_MAX_VIDEOS', '100'))  # 维度二：内容互动分最大检查视频数
@@ -256,10 +262,13 @@ class Config:
         return {
             'tikhub_api_configured': bool(cls.TIKHUB_API_KEY),
             'openrouter_api_configured': bool(cls.OPENROUTER_API_KEY),
+            'google_api_configured': bool(cls.GOOGLE_API_KEY),
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,
             'openrouter_model': cls.OPENROUTER_MODEL,
             'openrouter_concurrent_requests': cls.OPENROUTER_CONCURRENT_REQUESTS,
+            'google_model': cls.GOOGLE_MODEL,
+            'google_concurrent_requests': cls.GOOGLE_CONCURRENT_REQUESTS,
             'subtitle_extraction_enabled': cls.ENABLE_SUBTITLE_EXTRACTION,
             'data_range': {
                 'account_quality_days': cls.ACCOUNT_QUALITY_DAYS,

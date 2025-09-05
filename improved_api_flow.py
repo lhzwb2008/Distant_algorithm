@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 from api_client import TiKhubAPIClient
 from video_quality_scorer import VideoQualityScorer
+from video_content_analyzer import VideoContentAnalyzer
 from models import VideoDetail
 from openrouter_client import QualityScore
 from config import Config
@@ -29,6 +30,7 @@ class ImprovedAPIFlow:
         """
         self.api_client = api_client or TiKhubAPIClient()
         self.quality_scorer = quality_scorer or VideoQualityScorer()
+        self.content_analyzer = VideoContentAnalyzer()
     
     def fetch_videos_for_account_quality(self, user_id: str) -> List[VideoDetail]:
         """
@@ -74,10 +76,13 @@ class ImprovedAPIFlow:
         logger.info("🎯 第二阶段：获取内容互动分计算所需的视频数据")
         logger.info(f"   - 数据范围：最近{max_videos}条视频")
         logger.info(f"   - 关键词筛选：{keyword or '无'}")
-        subtitle_status = "✅ 启用" if Config.ENABLE_SUBTITLE_EXTRACTION else "❌ 关闭"
-        logger.info(f"   - 字幕提取：{subtitle_status}")
-        ai_status = "✅ 仅对匹配关键词的视频调用" if Config.ENABLE_SUBTITLE_EXTRACTION else "❌ 已禁用（需要自定义内容提取方法）"
-        logger.info(f"   - 大模型调用：{ai_status}")
+        
+        # 获取分析模式信息
+        analysis_info = self.content_analyzer.get_analysis_mode_info()
+        logger.info(f"   - 分析模式：{analysis_info['description']}")
+        logger.info(f"   - 使用API：{analysis_info['api_used']}")
+        logger.info(f"   - 并发数：{analysis_info['concurrent_requests']}")
+        logger.info(f"   - 需要下载视频：{'✅ 是' if analysis_info['requires_video_download'] else '❌ 否'}")
         
         # 使用原有的工作方法获取视频
         videos = []
@@ -100,15 +105,15 @@ class ImprovedAPIFlow:
             logger.error(f"获取视频数据失败: {e}")
             videos = []
         
-        # 单独处理AI评分，避免AI评分失败影响视频数据
+        # 单独处理内容分析，避免分析失败影响视频数据
         if videos and keyword:
             try:
-                logger.info(f"🤖 开始对 {len(videos)} 个匹配视频进行AI评分...")
-                quality_scores = self.quality_scorer.score_videos_batch(videos)
-                logger.info(f"✅ AI评分完成: {len(quality_scores)} 个视频")
+                logger.info(f"🤖 开始对 {len(videos)} 个匹配视频进行内容分析...")
+                quality_scores = self.content_analyzer.analyze_videos_batch(videos)
+                logger.info(f"✅ 内容分析完成: {len(quality_scores)} 个视频")
             except Exception as e:
-                logger.error(f"AI评分失败: {e}")
-                logger.info("⚠️  AI评分失败，但视频基础数据仍可用于内容互动评分")
+                logger.error(f"内容分析失败: {e}")
+                logger.info("⚠️  内容分析失败，但视频基础数据仍可用于内容互动评分")
                 quality_scores = {}
         
         # 统计信息

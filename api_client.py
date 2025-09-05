@@ -69,20 +69,47 @@ class TiKhubAPIClient:
                     raise requests.RequestException(f"API错误: {error_msg}")
                     
             except requests.RequestException as e:
+                # 生成curl命令供调试
+                curl_command = self._generate_curl_command(url, params)
+                
                 # 对于分页请求的400错误，可能是cursor无效，不需要重试太多次
                 if "400 Client Error" in str(e) and "cursor=" in str(params):
                     logger.warning(f"分页请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     # 对于分页400错误，只重试3次就放弃
                     if attempt >= 2:
                         logger.warning(f"分页请求连续失败，可能已到达数据边界或cursor无效")
                         raise e
                 else:
                     logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     if attempt == Config.TIKHUB_MAX_RETRIES - 1:
                         logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
                         import sys
                         sys.exit(1)
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
+    
+    def _generate_curl_command(self, url: str, params: Dict[str, Any] = None) -> str:
+        """生成curl命令供调试使用"""
+        import urllib.parse
+        
+        # 构建完整URL
+        if params:
+            query_string = urllib.parse.urlencode(params)
+            full_url = f"{url}?{query_string}"
+        else:
+            full_url = url
+        
+        # 构建curl命令
+        headers = []
+        for key, value in self.session.headers.items():
+            headers.append(f'-H "{key}: {value}"')
+        
+        curl_command = f'''curl -X GET \\
+  "{full_url}" \\
+  {' '.join(headers)}'''
+        
+        return curl_command
                 
     def fetch_user_profile(self, username_or_secuid: str) -> UserProfile:
         """获取用户档案信息
