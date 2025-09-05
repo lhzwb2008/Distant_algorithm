@@ -617,9 +617,15 @@ class CreatorScoreCalculator:
                 # 解析评分理由JSON
                 try:
                     import json
-                    reasoning_json = json.loads(ai_score.reasoning)
-                    reasoning_display = reasoning_json
-                except json.JSONDecodeError:
+                    # 检查 reasoning 是否已经是字典类型
+                    if isinstance(ai_score.reasoning, dict):
+                        reasoning_display = ai_score.reasoning
+                    elif isinstance(ai_score.reasoning, str):
+                        reasoning_json = json.loads(ai_score.reasoning)
+                        reasoning_display = reasoning_json
+                    else:
+                        reasoning_display = ai_score.reasoning
+                except (json.JSONDecodeError, TypeError):
                     reasoning_display = ai_score.reasoning
                 
                 breakdown["AI视频质量评分"]["各视频详情"][video_id] = {

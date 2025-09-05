@@ -549,11 +549,14 @@ class TiKhubAPIClient:
                 if collect_count > 0:
                     logger.info(f"  ⭐ 收藏: {collect_count:,}")
                 
-                # 显示字幕信息（如果有的话）
-                if subtitle:
-                    logger.info(f"  🎬 字幕: {subtitle.language_code}, {len(subtitle.full_text)}字符 (已获取)")
+                # 显示字幕信息（如果启用了字幕提取）
+                if Config.ENABLE_SUBTITLE_EXTRACTION:
+                    if subtitle:
+                        logger.info(f"  🎬 字幕: {subtitle.language_code}, {len(subtitle.full_text)}字符 (已获取)")
+                    else:
+                        logger.info(f"  🎬 字幕: 无字幕或提取失败")
                 else:
-                    logger.info(f"  🎬 字幕: 无字幕或提取失败")
+                    logger.info(f"  🎬 字幕: 已禁用字幕提取 (使用Gemini视频分析)")
                     
             except Exception as e:
                 logger.error(f"解析视频数据失败: {e}")

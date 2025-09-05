@@ -24,7 +24,11 @@ class VideoQualityScorer:
             openrouter_api_key: OpenRouter API密钥，如果不提供则从配置文件读取
             model: 使用的模型，如果不提供则从配置文件读取
         """
-        self.openrouter_client = OpenRouterClient(api_key=openrouter_api_key, model=model)
+        # 只有在启用字幕提取时才初始化 OpenRouter 客户端
+        if Config.ENABLE_SUBTITLE_EXTRACTION:
+            self.openrouter_client = OpenRouterClient(api_key=openrouter_api_key, model=model)
+        else:
+            self.openrouter_client = None
         
     def score_video_quality(self, video: VideoDetail) -> Optional[QualityScore]:
         """
@@ -37,7 +41,7 @@ class VideoQualityScorer:
             QualityScore对象或None（如果评分失败）
         """
         # 检查字幕提取开关是否启用
-        if not Config.ENABLE_SUBTITLE_EXTRACTION:
+        if not Config.ENABLE_SUBTITLE_EXTRACTION or not self.openrouter_client:
             logger.info(f"字幕提取开关已关闭，跳过视频 {video.video_id} 的AI质量评分")
             return None
             

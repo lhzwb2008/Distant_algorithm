@@ -20,8 +20,14 @@ class VideoContentAnalyzer:
     
     def __init__(self):
         """初始化分析器"""
-        self.openrouter_client = OpenRouterClient()
-        self.google_client = GoogleGeminiClient()
+        # 根据配置决定初始化哪些客户端
+        if Config.ENABLE_SUBTITLE_EXTRACTION:
+            self.openrouter_client = OpenRouterClient()
+            self.google_client = None
+        else:
+            self.openrouter_client = None
+            self.google_client = GoogleGeminiClient()
+        
         self.api_client = TiKhubAPIClient()
         
     def analyze_videos_batch(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
@@ -48,6 +54,10 @@ class VideoContentAnalyzer:
     
     def _analyze_with_subtitles(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
         """使用字幕提取模式分析视频"""
+        if not self.openrouter_client:
+            logger.error("OpenRouter客户端未初始化，无法使用字幕提取模式")
+            return {}
+            
         total_videos = len(videos)
         concurrent_requests = min(Config.OPENROUTER_CONCURRENT_REQUESTS, total_videos)
         
@@ -84,6 +94,10 @@ class VideoContentAnalyzer:
     
     def _analyze_with_gemini(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
         """使用Google Gemini视频分析模式"""
+        if not self.google_client:
+            logger.error("Google Gemini客户端未初始化，无法使用视频分析模式")
+            return {}
+            
         total_videos = len(videos)
         concurrent_requests = min(Config.GOOGLE_CONCURRENT_REQUESTS, total_videos)
         
