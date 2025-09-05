@@ -74,9 +74,15 @@ class ImprovedAPIFlow:
         logger.info("🎯 第二阶段：获取内容互动分计算所需的视频数据")
         logger.info(f"   - 数据范围：最近{max_videos}条视频")
         logger.info(f"   - 关键词筛选：{keyword or '无'}")
-        logger.info("   - 大模型调用：✅ 仅对匹配关键词的视频调用")
+        subtitle_status = "✅ 启用" if Config.ENABLE_SUBTITLE_EXTRACTION else "❌ 关闭"
+        logger.info(f"   - 字幕提取：{subtitle_status}")
+        ai_status = "✅ 仅对匹配关键词的视频调用" if Config.ENABLE_SUBTITLE_EXTRACTION else "❌ 已禁用（需要自定义内容提取方法）"
+        logger.info(f"   - 大模型调用：{ai_status}")
         
         # 使用原有的工作方法获取视频
+        videos = []
+        quality_scores = {}
+        
         try:
             if keyword:
                 # 如果有关键词，使用关键词筛选
@@ -84,26 +90,26 @@ class ImprovedAPIFlow:
                 videos = self.api_client.fetch_user_top_videos(user_id, max_videos, keyword)
                 logger.info(f"✅ 获取到 {len(videos)} 个匹配关键词的视频")
                 
-                # 对所有匹配的视频进行AI评分
-                quality_scores = {}
-                if videos:
-                    logger.info(f"🤖 开始对 {len(videos)} 个匹配视频进行AI评分...")
-                    quality_scores = self.quality_scorer.score_videos_batch(videos)
-                    logger.info(f"✅ AI评分完成: {len(quality_scores)} 个视频")
-                
             else:
                 # 没有关键词，获取最近的视频但不进行AI评分
                 logger.info(f"📡 获取最近 {max_videos} 条视频（无关键词筛选）...")
                 videos = self.api_client.fetch_user_top_videos(user_id, max_videos)
                 logger.info(f"✅ 获取到 {len(videos)} 个视频")
                 
-                # 没有关键词时不进行AI评分
-                quality_scores = {}
-                
         except Exception as e:
             logger.error(f"获取视频数据失败: {e}")
             videos = []
-            quality_scores = {}
+        
+        # 单独处理AI评分，避免AI评分失败影响视频数据
+        if videos and keyword:
+            try:
+                logger.info(f"🤖 开始对 {len(videos)} 个匹配视频进行AI评分...")
+                quality_scores = self.quality_scorer.score_videos_batch(videos)
+                logger.info(f"✅ AI评分完成: {len(quality_scores)} 个视频")
+            except Exception as e:
+                logger.error(f"AI评分失败: {e}")
+                logger.info("⚠️  AI评分失败，但视频基础数据仍可用于内容互动评分")
+                quality_scores = {}
         
         # 统计信息
         logger.info(f"✅ 内容互动分数据获取完成：")

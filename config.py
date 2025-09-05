@@ -18,7 +18,7 @@ class Config:
     # TiKhub API配置
     # 注意：TIKHUB_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
-    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.io')  # 默认使用新URL
+    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 使用正确的API URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
     TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
     
@@ -48,6 +48,9 @@ class Config:
     VIDEO_METRICS_ENDPOINT = API_ENDPOINTS['video_metrics']
     VIDEO_DETAIL_ENDPOINT = API_ENDPOINTS['video_detail']
     USER_VIDEOS_ENDPOINT = API_ENDPOINTS['user_videos']
+    
+    # 字幕提取开关配置
+    ENABLE_SUBTITLE_EXTRACTION = os.getenv('ENABLE_SUBTITLE_EXTRACTION', 'false').lower() == 'true'
     
     # 主评分权重配置
     CONTENT_QUALITY_WEIGHT = float(os.getenv('CONTENT_QUALITY_WEIGHT', '0.35'))
@@ -255,6 +258,7 @@ class Config:
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,
             'openrouter_model': cls.OPENROUTER_MODEL,
+            'subtitle_extraction_enabled': cls.ENABLE_SUBTITLE_EXTRACTION,
             'data_range': {
                 'account_quality_days': cls.ACCOUNT_QUALITY_DAYS,
                 'content_interaction_max_videos': cls.CONTENT_INTERACTION_MAX_VIDEOS

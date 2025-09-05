@@ -8,6 +8,7 @@ import logging
 from typing import Optional, Dict, Any
 from openrouter_client import OpenRouterClient, QualityScore
 from models import VideoDetail
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,11 @@ class VideoQualityScorer:
         Returns:
             QualityScore对象或None（如果评分失败）
         """
+        # 检查字幕提取开关是否启用
+        if not Config.ENABLE_SUBTITLE_EXTRACTION:
+            logger.info(f"字幕提取开关已关闭，跳过视频 {video.video_id} 的AI质量评分")
+            return None
+            
         if not video.subtitle or not video.subtitle.full_text:
             logger.warning(f"视频 {video.video_id} 没有字幕，无法进行质量评分")
             return None

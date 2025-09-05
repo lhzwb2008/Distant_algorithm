@@ -190,15 +190,22 @@ cp .env.example .env
 # TiKhub API配置
 TIKHUB_API_KEY=your_api_key_here
 TIKHUB_BASE_URL=https://api.tikhub.dev
-TIKHUB_REQUEST_TIMEOUT=30
-TIKHUB_MAX_RETRIES=3
+
+# OpenRouter API配置（用于AI视频质量评分）
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# 字幕提取开关（默认关闭）
+# 设置为 true 启用字幕提取和AI评分
+# 设置为 false 跳过字幕提取（需要自定义视频内容提取方法）
+ENABLE_SUBTITLE_EXTRACTION=false
+
+# 数据获取范围配置
+ACCOUNT_QUALITY_DAYS=90
+CONTENT_INTERACTION_MAX_VIDEOS=100
 
 # 评分权重配置
-ACCOUNT_QUALITY_WEIGHT=0.35
+CONTENT_QUALITY_WEIGHT=0.35
 CONTENT_INTERACTION_WEIGHT=0.65
-
-# 日志配置
-LOG_LEVEL=INFO
 ```
 
 ## 使用方法

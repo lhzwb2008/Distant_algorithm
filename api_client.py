@@ -493,8 +493,8 @@ class TiKhubAPIClient:
                 share_count = base_stats.get('shareCount', 0)
                 collect_count = base_stats.get('collectCount', 0)
                 
-                # 维度二（内容互动分）需要对匹配关键词的视频提取字幕
-                if keyword:
+                # 维度二（内容互动分）需要对匹配关键词的视频提取字幕（如果开关启用）
+                if keyword and Config.ENABLE_SUBTITLE_EXTRACTION:
                     # 对匹配关键词的视频进行字幕提取
                     subtitle = self.extract_subtitle_text(video_id)
                 else:
