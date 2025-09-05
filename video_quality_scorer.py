@@ -5,9 +5,11 @@
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Dict, Any
 from openrouter_client import OpenRouterClient, QualityScore
 from models import VideoDetail
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,11 @@ class VideoQualityScorer:
         Returns:
             QualityScore对象或None（如果评分失败）
         """
+        # 检查字幕提取开关是否启用
+        if not Config.ENABLE_SUBTITLE_EXTRACTION:
+            logger.info(f"字幕提取开关已关闭，跳过视频 {video.video_id} 的AI质量评分")
+            return None
+            
         if not video.subtitle or not video.subtitle.full_text:
             logger.warning(f"视频 {video.video_id} 没有字幕，无法进行质量评分")
             return None
@@ -64,7 +71,7 @@ class VideoQualityScorer:
     
     def score_videos_batch(self, videos: list[VideoDetail]) -> Dict[str, QualityScore]:
         """
-        批量为视频进行质量评分
+        批量为视频进行质量评分（并行处理）
         
         Args:
             videos: 视频详情列表
@@ -72,21 +79,43 @@ class VideoQualityScorer:
         Returns:
             视频ID到QualityScore的映射字典
         """
-        results = {}
-        total_videos = len(videos)
-        
-        logger.info(f"开始批量质量评分，共 {total_videos} 个视频")
-        
-        for i, video in enumerate(videos, 1):
-            logger.info(f"正在评分第 {i}/{total_videos} 个视频 (ID: {video.video_id})")
+        if not videos:
+            return {}
             
-            quality_score = self.score_video_quality(video)
-            if quality_score:
-                results[video.video_id] = quality_score
-            else:
-                logger.warning(f"视频 {video.video_id} 评分失败，跳过")
+        total_videos = len(videos)
+        concurrent_requests = min(Config.OPENROUTER_CONCURRENT_REQUESTS, total_videos)
         
-        logger.info(f"批量质量评分完成，成功评分 {len(results)}/{total_videos} 个视频")
+        logger.info(f"🚀 开始并行批量质量评分，共 {total_videos} 个视频，并发数: {concurrent_requests}")
+        
+        # 使用线程池进行并行处理
+        results = {}
+        completed_count = 0
+        
+        with ThreadPoolExecutor(max_workers=concurrent_requests) as executor:
+            # 提交所有任务
+            future_to_video = {
+                executor.submit(self.score_video_quality, video): video 
+                for video in videos
+            }
+            
+            # 处理完成的任务
+            for future in as_completed(future_to_video):
+                video = future_to_video[future]
+                completed_count += 1
+                
+                try:
+                    quality_score = future.result()
+                    if quality_score:
+                        results[video.video_id] = quality_score
+                        logger.info(f"✅ 视频 {video.video_id} 评分完成 ({completed_count}/{total_videos}) - 总分: {quality_score.total_score:.1f}")
+                    else:
+                        logger.warning(f"❌ 视频 {video.video_id} 评分失败 ({completed_count}/{total_videos})")
+                        
+                except Exception as e:
+                    logger.error(f"💥 视频 {video.video_id} 评分异常 ({completed_count}/{total_videos}): {e}")
+        
+        success_rate = len(results) / total_videos * 100 if total_videos > 0 else 0
+        logger.info(f"🎯 并行批量质量评分完成！成功: {len(results)}/{total_videos} ({success_rate:.1f}%)")
         
         # 输出评分统计
         if results:

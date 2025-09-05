@@ -69,20 +69,47 @@ class TiKhubAPIClient:
                     raise requests.RequestException(f"API错误: {error_msg}")
                     
             except requests.RequestException as e:
+                # 生成curl命令供调试
+                curl_command = self._generate_curl_command(url, params)
+                
                 # 对于分页请求的400错误，可能是cursor无效，不需要重试太多次
                 if "400 Client Error" in str(e) and "cursor=" in str(params):
                     logger.warning(f"分页请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     # 对于分页400错误，只重试3次就放弃
                     if attempt >= 2:
                         logger.warning(f"分页请求连续失败，可能已到达数据边界或cursor无效")
                         raise e
                 else:
                     logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     if attempt == Config.TIKHUB_MAX_RETRIES - 1:
                         logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
                         import sys
                         sys.exit(1)
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
+    
+    def _generate_curl_command(self, url: str, params: Dict[str, Any] = None) -> str:
+        """生成curl命令供调试使用"""
+        import urllib.parse
+        
+        # 构建完整URL
+        if params:
+            query_string = urllib.parse.urlencode(params)
+            full_url = f"{url}?{query_string}"
+        else:
+            full_url = url
+        
+        # 构建curl命令
+        headers = []
+        for key, value in self.session.headers.items():
+            headers.append(f'-H "{key}: {value}"')
+        
+        curl_command = f'''curl -X GET \\
+  "{full_url}" \\
+  {' '.join(headers)}'''
+        
+        return curl_command
                 
     def fetch_user_profile(self, username_or_secuid: str) -> UserProfile:
         """获取用户档案信息
@@ -286,10 +313,29 @@ class TiKhubAPIClient:
                 # 使用配置中的API端点获取用户视频列表
                 data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
                 
-                # 检查API响应状态
-                if data.get('statusCode', 1) != 0:
-                    logger.warning(f"第{page}页API返回错误状态: {data.get('statusMsg', 'Unknown error')}")
+                # 检查API响应状态 - 兼容多种响应格式
+                # 添加调试信息
+                logger.debug(f"第{page}页API响应状态检查: code={data.get('code')}, statusCode={data.get('statusCode')}")
+                
+                # 先检查是否成功
+                is_success = False
+                if data.get('code') == 200:  # 标准格式
+                    is_success = True
+                elif data.get('statusCode') == 0:  # 旧格式
+                    is_success = True
+                elif 'data' in data and data.get('statusCode') is None and data.get('code') is None:  # 可能没有状态码但有数据
+                    is_success = True
+                
+                if not is_success:
+                    error_msg = data.get('message', data.get('statusMsg', 'Unknown error'))
+                    logger.warning(f"第{page}页API返回错误状态: {error_msg}")
+                    logger.debug(f"完整响应数据: {data}")
                     break
+                
+                # 调试：记录API响应结构
+                logger.debug(f"第{page}页API响应主要键: {list(data.keys())}")
+                if 'data' in data and isinstance(data['data'], dict):
+                    logger.debug(f"第{page}页data子级键: {list(data['data'].keys())}")
                 
                 # 获取视频列表 - 使用与fetch_user_videos相同的逻辑
                 videos = []
@@ -321,19 +367,76 @@ class TiKhubAPIClient:
                 all_videos.extend(videos)
                 logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
                 
-                # 更新cursor和页数
-                new_cursor = data.get('cursor', cursor + len(videos))
+                # 如果有关键词筛选，检查是否已达到最大视频数量
+                if keyword and len(all_videos) >= max_videos_to_check:
+                    logger.info(f"已获取 {len(all_videos)} 个视频，达到最大限制 {max_videos_to_check} 个，停止获取更多页面")
+                    break
+                
+                # 更新cursor和页数 - 尝试多种可能的cursor位置
+                new_cursor = None
+                
+                # 根据TikTok API文档优化cursor提取逻辑
+                # 优先检查data对象内的cursor相关字段
+                if 'data' in data and isinstance(data['data'], dict):
+                    data_obj = data['data']
+                    if 'cursor' in data_obj:
+                        new_cursor = data_obj['cursor']
+                        logger.debug(f"找到cursor在data.cursor: {new_cursor}")
+                    elif 'max_cursor' in data_obj:
+                        new_cursor = data_obj['max_cursor']
+                        logger.debug(f"找到max_cursor在data.max_cursor: {new_cursor}")
+                    elif 'next_cursor' in data_obj:
+                        new_cursor = data_obj['next_cursor']
+                        logger.debug(f"找到next_cursor在data.next_cursor: {new_cursor}")
+                    else:
+                        logger.warning(f"data对象中未找到cursor字段，可用键: {list(data_obj.keys())}")
+                # 备用：检查根级别的cursor
+                elif 'cursor' in data:
+                    new_cursor = data['cursor']
+                    logger.debug(f"找到cursor在根级别: {new_cursor}")
+                elif 'max_cursor' in data:
+                    new_cursor = data['max_cursor']
+                    logger.debug(f"找到max_cursor在根级别: {new_cursor}")
+                else:
+                    logger.warning(f"未找到cursor，API响应的主要键: {list(data.keys())}")
+                    if 'data' in data and isinstance(data['data'], dict):
+                        logger.warning(f"data子级的键: {list(data['data'].keys())}")
+                
                 # 确保cursor是整数
-                if isinstance(new_cursor, str):
-                    try:
-                        new_cursor = int(new_cursor)
-                    except ValueError:
-                        new_cursor = cursor + len(videos)
+                if new_cursor is not None:
+                    if isinstance(new_cursor, str):
+                        try:
+                            new_cursor = int(new_cursor)
+                        except ValueError:
+                            logger.warning(f"Cursor不是有效数字: {new_cursor}")
+                            new_cursor = None
+                
+                # 如果没有找到有效的cursor，检查是否还有更多数据
+                if new_cursor is None:
+                    has_more = False
+                    # 优先检查data对象内的has_more字段
+                    if 'data' in data and isinstance(data['data'], dict) and 'has_more' in data['data']:
+                        has_more = data['data']['has_more']
+                    elif 'has_more' in data:
+                        has_more = data['has_more']
+                    elif 'data' in data and isinstance(data['data'], dict) and 'hasMore' in data['data']:
+                        has_more = data['data']['hasMore']
+                    elif 'hasMore' in data:
+                        has_more = data['hasMore']
+                    
+                    if has_more:
+                        logger.warning(f"第{page}页：API表示还有更多数据，但未找到有效cursor，停止分页")
+                    else:
+                        logger.info(f"第{page}页：API表示没有更多数据")
+                    break
                 
                 # 检查cursor是否有效更新
-                if new_cursor <= cursor and len(videos) > 0:
-                    logger.warning(f"Cursor没有正确更新 (old: {cursor}, new: {new_cursor})，使用备用方案")
-                    new_cursor = cursor + len(videos)
+                # 注意：TikTok API的cursor可能是时间戳，按时间倒序排列时会递减
+                if new_cursor == cursor:
+                    logger.warning(f"Cursor没有变化 (old: {cursor}, new: {new_cursor})，可能已到达数据末尾")
+                    break
+                else:
+                    logger.debug(f"Cursor更新: {cursor} → {new_cursor}")
                 
                 cursor = new_cursor
                 page += 1
@@ -358,6 +461,11 @@ class TiKhubAPIClient:
         
         logger.info(f"分页获取完成，总共获取 {len(all_videos)} 个视频")
         
+        # 如果有关键词筛选，确保只处理前100个视频
+        if keyword and len(all_videos) > max_videos_to_check:
+            all_videos = all_videos[:max_videos_to_check]
+            logger.info(f"截取前 {max_videos_to_check} 个视频进行处理，实际处理 {len(all_videos)} 个视频")
+        
         # 从视频列表构建VideoDetail对象，并获取额外的指标数据
         video_details = []
         
@@ -380,7 +488,20 @@ class TiKhubAPIClient:
                     # logger.info(f"   📝 完整描述: {desc}")
             
             logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(all_videos)} 个视频匹配")
-            videos_to_process = filtered_videos
+            
+            # 对筛选后的视频进行去重（基于video_id）
+            seen_ids = set()
+            unique_videos = []
+            for video in filtered_videos:
+                video_id = video.get('id', '')
+                if video_id and video_id not in seen_ids:
+                    seen_ids.add(video_id)
+                    unique_videos.append(video)
+            
+            if len(unique_videos) != len(filtered_videos):
+                logger.info(f"🔄 视频去重: {len(filtered_videos)} → {len(unique_videos)} 个唯一视频")
+            
+            videos_to_process = unique_videos
         else:
             # 如果没有关键词，按count截取
             videos_to_process = all_videos[:count]
@@ -399,8 +520,8 @@ class TiKhubAPIClient:
                 share_count = base_stats.get('shareCount', 0)
                 collect_count = base_stats.get('collectCount', 0)
                 
-                # 维度二（内容互动分）需要对匹配关键词的视频提取字幕
-                if keyword:
+                # 维度二（内容互动分）需要对匹配关键词的视频提取字幕（如果开关启用）
+                if keyword and Config.ENABLE_SUBTITLE_EXTRACTION:
                     # 对匹配关键词的视频进行字幕提取
                     subtitle = self.extract_subtitle_text(video_id)
                 else:
@@ -626,9 +747,13 @@ class TiKhubAPIClient:
                 all_videos.extend(page_videos)
                 logger.info(f"第 {page} 页: 解析成功 {len(page_videos)} 个视频，跳过 {videos_outside_range} 个超出范围的视频")
                 
-                # 如果当前页有很多视频超出时间范围，可能后续页面都超出范围了
-                if videos_outside_range > len(page_videos):
-                    logger.info("当前页超出时间范围的视频较多，可能已到达三个月边界，停止分页")
+                # 如果当前页所有视频都超出时间范围，后续页面也会超出范围
+                if len(page_videos) == 0 and videos_outside_range > 0:
+                    logger.info(f"第{page}页所有视频都超出90天时间范围，后续页面也会超出范围，停止获取")
+                    break
+                # 如果当前页大部分视频都超出时间范围，也可能已到达边界
+                elif videos_outside_range > len(page_videos) * 0.8 and len(page_videos) > 0:
+                    logger.info(f"第{page}页大部分视频超出90天时间范围，可能已接近时间边界，停止获取")
                     break
                 
                 # 更新分页参数（与现有API保持兼容）
@@ -637,10 +762,29 @@ class TiKhubAPIClient:
                     logger.info("API返回 hasMore=false，没有更多数据")
                     break
                 
-                # 更新cursor用于下一页
-                new_cursor = data.get('cursor', cursor + videos_per_page)
+                # 更新cursor用于下一页 - 尝试多种可能的cursor位置
+                new_cursor = None
+                
+                # 尝试不同的cursor位置
+                if 'cursor' in data:
+                    new_cursor = data['cursor']
+                elif 'data' in data and isinstance(data['data'], dict) and 'cursor' in data['data']:
+                    new_cursor = data['data']['cursor']
+                elif 'max_cursor' in data:
+                    new_cursor = data['max_cursor']
+                elif 'data' in data and isinstance(data['data'], dict) and 'max_cursor' in data['data']:
+                    new_cursor = data['data']['max_cursor']
+                
                 # 确保cursor是整数类型
-                cursor = int(new_cursor) if new_cursor is not None else cursor + videos_per_page
+                if new_cursor is not None:
+                    try:
+                        cursor = int(new_cursor)
+                    except (ValueError, TypeError):
+                        logger.warning(f"无法解析cursor为整数: {new_cursor}，停止分页")
+                        break
+                else:
+                    logger.warning("未找到有效的cursor，停止分页")
+                    break
                 page += 1
                 
                 # 短暂延迟避免请求过快

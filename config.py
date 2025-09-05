@@ -18,7 +18,7 @@ class Config:
     # TiKhub API配置
     # 注意：TIKHUB_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
-    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.io')  # 默认使用新URL
+    TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 使用正确的API URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
     TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
     
@@ -30,11 +30,13 @@ class Config:
     OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
     OPENROUTER_TEMPERATURE = float(os.getenv('OPENROUTER_TEMPERATURE', '0.3'))
     OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
-
-    # OpenAI API配置 - 用于音频转文本（Whisper）
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-    OPENAI_WHISPER_MODEL = os.getenv('OPENAI_WHISPER_MODEL', 'whisper-1')
-    OPENAI_REQUEST_TIMEOUT = int(os.getenv('OPENAI_REQUEST_TIMEOUT', '120'))  # 音频处理需要更长时间
+    OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv('OPENROUTER_CONCURRENT_REQUESTS', '20'))  # 并发请求数
+    
+    # Google Gemini API配置 - 用于视频内容分析（当字幕提取关闭时使用）
+    GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+    GOOGLE_MODEL = os.getenv('GOOGLE_MODEL', 'models/gemini-2.5-flash')
+    GOOGLE_REQUEST_TIMEOUT = int(os.getenv('GOOGLE_REQUEST_TIMEOUT', '120'))  # 视频处理需要更长时间
+    GOOGLE_CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_CONCURRENT_REQUESTS', '5'))  # Google API并发数，建议较低
     
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
@@ -53,6 +55,9 @@ class Config:
     VIDEO_METRICS_ENDPOINT = API_ENDPOINTS['video_metrics']
     VIDEO_DETAIL_ENDPOINT = API_ENDPOINTS['video_detail']
     USER_VIDEOS_ENDPOINT = API_ENDPOINTS['user_videos']
+    
+    # 字幕提取开关配置
+    ENABLE_SUBTITLE_EXTRACTION = os.getenv('ENABLE_SUBTITLE_EXTRACTION', 'false').lower() == 'true'
     
     # 主评分权重配置
     CONTENT_QUALITY_WEIGHT = float(os.getenv('CONTENT_QUALITY_WEIGHT', '0.35'))
@@ -257,9 +262,14 @@ class Config:
         return {
             'tikhub_api_configured': bool(cls.TIKHUB_API_KEY),
             'openrouter_api_configured': bool(cls.OPENROUTER_API_KEY),
+            'google_api_configured': bool(cls.GOOGLE_API_KEY),
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,
             'openrouter_model': cls.OPENROUTER_MODEL,
+            'openrouter_concurrent_requests': cls.OPENROUTER_CONCURRENT_REQUESTS,
+            'google_model': cls.GOOGLE_MODEL,
+            'google_concurrent_requests': cls.GOOGLE_CONCURRENT_REQUESTS,
+            'subtitle_extraction_enabled': cls.ENABLE_SUBTITLE_EXTRACTION,
             'data_range': {
                 'account_quality_days': cls.ACCOUNT_QUALITY_DAYS,
                 'content_interaction_max_videos': cls.CONTENT_INTERACTION_MAX_VIDEOS

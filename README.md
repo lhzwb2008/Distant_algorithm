@@ -190,15 +190,27 @@ cp .env.example .env
 # TiKhub API配置
 TIKHUB_API_KEY=your_api_key_here
 TIKHUB_BASE_URL=https://api.tikhub.dev
-TIKHUB_REQUEST_TIMEOUT=30
-TIKHUB_MAX_RETRIES=3
+
+# OpenRouter API配置（用于字幕模式的AI视频质量评分）
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_CONCURRENT_REQUESTS=20  # 并发请求数，默认20
+
+# Google Gemini API配置（用于视频内容分析模式）
+GOOGLE_API_KEY=your_google_api_key_here
+GOOGLE_CONCURRENT_REQUESTS=5  # Google API并发数，建议较低，默认5
+
+# 内容分析模式开关
+# 设置为 true：使用字幕提取 + OpenRouter AI评分
+# 设置为 false：使用Google Gemini视频内容分析（会下载并分析视频）
+ENABLE_SUBTITLE_EXTRACTION=false
+
+# 数据获取范围配置
+ACCOUNT_QUALITY_DAYS=90
+CONTENT_INTERACTION_MAX_VIDEOS=100
 
 # 评分权重配置
-ACCOUNT_QUALITY_WEIGHT=0.35
+CONTENT_QUALITY_WEIGHT=0.35
 CONTENT_INTERACTION_WEIGHT=0.65
-
-# 日志配置
-LOG_LEVEL=INFO
 ```
 
 ## 使用方法
