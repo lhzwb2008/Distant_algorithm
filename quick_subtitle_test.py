@@ -60,6 +60,71 @@ def main():
         print("🔍 正在提取字幕...")
         subtitle = api_client.extract_subtitle_text(video_id)
         
+        # 检查原始API响应中的字幕数据结构
+        print("\n🔍 检查原始API响应中的字幕数据...")
+        try:
+            # 重新获取视频详情以检查原始数据
+            print("   📡 正在获取原始API响应...")
+            response = api_client._make_request('/api/v1/tiktok/app/v3/fetch_one_video', {
+                'aweme_id': video_id,
+                'region': 'US',
+                'priority_region': 'US'
+            })
+            
+            print(f"   📊 API响应状态: {bool(response)}")
+            if response:
+                print(f"   📊 响应顶层键: {list(response.keys()) if isinstance(response, dict) else 'Not a dict'}")
+            
+            if response and 'data' in response and 'aweme_detail' in response['data']:
+                aweme_detail = response['data']['aweme_detail']
+                print(f"   📊 aweme_detail键: {list(aweme_detail.keys())}")
+                
+                # 检查所有可能的字幕相关字段
+                print("   🔍 检查字幕相关字段:")
+                
+                # 检查 cla_info
+                if 'cla_info' in aweme_detail:
+                    cla_info = aweme_detail['cla_info']
+                    print(f"      cla_info存在: {bool(cla_info)}")
+                    if cla_info:
+                        print(f"      cla_info类型: {type(cla_info)}")
+                        print(f"      cla_info内容: {cla_info}")
+                        
+                        if isinstance(cla_info, dict) and 'caption_infos' in cla_info:
+                            caption_infos = cla_info['caption_infos']
+                            print(f"      caption_infos存在: {bool(caption_infos)}")
+                            if caption_infos:
+                                print(f"      caption_infos数量: {len(caption_infos)}")
+                                for i, caption in enumerate(caption_infos):
+                                    print(f"      字幕 {i+1}: {caption}")
+                else:
+                    print("      ❌ 没有找到 cla_info 字段")
+                
+                # 检查其他可能的字幕字段
+                subtitle_fields = ['subtitle', 'captions', 'text_extra', 'desc']
+                for field in subtitle_fields:
+                    if field in aweme_detail:
+                        value = aweme_detail[field]
+                        print(f"      {field}: {str(value)[:100]}...")
+                
+                # 检查 video 字段下的字幕信息
+                if 'video' in aweme_detail:
+                    video_info = aweme_detail['video']
+                    print(f"      video字段存在: {bool(video_info)}")
+                    if isinstance(video_info, dict):
+                        print(f"      video键: {list(video_info.keys())}")
+                        if 'cla_info' in video_info:
+                            print(f"      video.cla_info: {video_info['cla_info']}")
+            else:
+                print("   ❌ API响应格式不正确或缺少必要字段")
+                if response:
+                    print(f"   响应结构: {response}")
+                
+        except Exception as e:
+            print(f"   ❌ 检查原始数据时出错: {e}")
+            import traceback
+            print(f"   详细错误: {traceback.format_exc()}")
+        
         if subtitle and subtitle.full_text:
             print(f"\n✅ 字幕提取成功!")
             print(f"📝 字幕语言: {subtitle.language}")

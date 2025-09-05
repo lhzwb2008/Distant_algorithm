@@ -69,11 +69,19 @@ class TiKhubAPIClient:
                     raise requests.RequestException(f"API错误: {error_msg}")
                     
             except requests.RequestException as e:
-                logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
-                if attempt == Config.TIKHUB_MAX_RETRIES - 1:
-                    logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
-                    import sys
-                    sys.exit(1)
+                # 对于分页请求的400错误，可能是cursor无效，不需要重试太多次
+                if "400 Client Error" in str(e) and "cursor=" in str(params):
+                    logger.warning(f"分页请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    # 对于分页400错误，只重试3次就放弃
+                    if attempt >= 2:
+                        logger.warning(f"分页请求连续失败，可能已到达数据边界或cursor无效")
+                        raise e
+                else:
+                    logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                    if attempt == Config.TIKHUB_MAX_RETRIES - 1:
+                        logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
+                        import sys
+                        sys.exit(1)
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
                 
     def fetch_user_profile(self, username_or_secuid: str) -> UserProfile:
@@ -274,6 +282,7 @@ class TiKhubAPIClient:
             }
             
             try:
+                logger.info(f"正在获取第 {page} 页数据 (cursor: {cursor})...")
                 # 使用配置中的API端点获取用户视频列表
                 data = self._make_request(Config.USER_VIDEOS_ENDPOINT, params)
                 
@@ -313,23 +322,39 @@ class TiKhubAPIClient:
                 logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
                 
                 # 更新cursor和页数
-                cursor = data.get('cursor', cursor + len(videos))
+                new_cursor = data.get('cursor', cursor + len(videos))
                 # 确保cursor是整数
-                if isinstance(cursor, str):
+                if isinstance(new_cursor, str):
                     try:
-                        cursor = int(cursor)
+                        new_cursor = int(new_cursor)
                     except ValueError:
-                        cursor = cursor + len(videos)
+                        new_cursor = cursor + len(videos)
+                
+                # 检查cursor是否有效更新
+                if new_cursor <= cursor and len(videos) > 0:
+                    logger.warning(f"Cursor没有正确更新 (old: {cursor}, new: {new_cursor})，使用备用方案")
+                    new_cursor = cursor + len(videos)
+                
+                cursor = new_cursor
                 page += 1
                 
                 # 如果这页视频少于20个，说明已经到最后一页
                 if len(videos) < 20:
                     logger.info(f"第{page-1}页视频数量少于20个，已到达最后一页")
                     break
+                
+                # 添加请求间隔，避免过于频繁的API调用
+                if page <= max_pages:
+                    time.sleep(0.5)  # 500ms间隔
                     
             except Exception as e:
-                logger.error(f"第{page}页获取失败: {e}")
-                break
+                if "400 Client Error" in str(e) and page > 1:
+                    logger.info(f"第{page}页获取失败，可能已到达数据边界: {e}")
+                    logger.info(f"已成功获取前 {page-1} 页数据，停止继续分页")
+                    break
+                else:
+                    logger.error(f"第{page}页获取失败: {e}")
+                    break
         
         logger.info(f"分页获取完成，总共获取 {len(all_videos)} 个视频")
         
@@ -345,13 +370,14 @@ class TiKhubAPIClient:
                 video_id = video.get('id', 'unknown')
                 if keyword.lower() in desc.lower():
                     filtered_videos.append(video)
-                    logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
-                    logger.info(f"   📹 视频ID: {video_id}")
-                    logger.info(f"   📝 完整描述: {desc}")
+                    # logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
+                    # logger.info(f"   📹 视频ID: {video_id}")
+                    # logger.info(f"   📝 完整描述: {desc}")
                 else:
-                    logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
-                    logger.info(f"   📹 视频ID: {video_id}")
-                    logger.info(f"   📝 完整描述: {desc}")
+                    pass
+                    # logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
+                    # logger.info(f"   📹 视频ID: {video_id}")
+                    # logger.info(f"   📝 完整描述: {desc}")
             
             logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(all_videos)} 个视频匹配")
             videos_to_process = filtered_videos
@@ -398,7 +424,7 @@ class TiKhubAPIClient:
                 # 记录详细的视频数据
                 logger.info(f"成功解析视频 {video_detail.video_id}")
                 logger.info(f"  📺 播放: {view_count:,}, 👍 点赞: {like_count:,}, 💬 评论: {comment_count:,}, 🔄 分享: {share_count:,}")
-                logger.info(f"  📝 完整描述: {video_detail.desc}")
+                # logger.info(f"  📝 完整描述: {video_detail.desc}")
                 if collect_count > 0:
                     logger.info(f"  ⭐ 收藏: {collect_count:,}")
                 
@@ -509,12 +535,13 @@ class TiKhubAPIClient:
                         if keyword:
                             desc = video.get('desc', '')
                             if keyword.lower() not in desc.lower():
-                                logger.info(f"❌ 视频 {video_id} 不匹配关键词 '{keyword}':")
-                                logger.info(f"   📝 完整描述: {desc}")
+                                # logger.info(f"❌ 视频 {video_id} 不匹配关键词 '{keyword}':")
+                                # logger.info(f"   📝 完整描述: {desc}")
                                 continue
                             else:
-                                logger.info(f"✅ 视频 {video_id} 匹配关键词 '{keyword}':")
-                                logger.info(f"   📝 完整描述: {desc}")
+                                pass
+                                # logger.info(f"✅ 视频 {video_id} 匹配关键词 '{keyword}':")
+                                # logger.info(f"   📝 完整描述: {desc}")
                         
                         # 从基础API响应获取数据（与现有代码保持一致）
                         base_stats = video.get('stats', {})

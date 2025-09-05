@@ -24,7 +24,7 @@ class CreatorScoreCalculator:
     主评分公式：
     TikTok Creator Score = (内容互动数据 × 65% + 内容质量 × 35%) × 账户质量加权
     
-    注：内容质量（维度3）固定为60分
+    注：内容质量使用AI评分，无AI评分时为0分
     """
     
     def __init__(self, api_client: Optional[TiKhubAPIClient] = None):
@@ -42,7 +42,7 @@ class CreatorScoreCalculator:
         # 权重配置
         self.content_weight = Config.CONTENT_INTERACTION_WEIGHT  # 65%
         self.content_quality_weight = 0.35  # 35% 内容质量权重
-        self.content_quality_score = 60.0   # 内容质量固定分数（当没有AI评分时的默认值）
+        self.content_quality_score = 0.0    # 内容质量默认分数（当没有AI评分时使用0分）
         
     async def calculate_creator_score(self, 
                                     username: str,
@@ -279,7 +279,7 @@ class CreatorScoreCalculator:
             print(f"📋 新主评分公式:")
             print(f"   TikTok Creator Score = (40%峰值表现 + 40%近期状态 + 20%整体水平) × 账户质量加权")
             print(f"   其中: 每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%")
-            print(f"   内容质量固定为60分")
+            print(f"   内容质量使用AI评分，无AI评分时为0分")
             
             # 6. 🤖 集成AI质量评分到最终计算
             print(f"\n🤖 AI视频质量评分集成")
@@ -287,7 +287,7 @@ class CreatorScoreCalculator:
                 avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
                 print(f"📊 AI质量评分统计:")
                 print(f"   • 评分视频数: {len(ai_quality_scores)}")
-                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (替代默认60分)")
+                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (AI智能评分)")
                 print(f"   • 最高AI质量分: {max(score.total_score for score in ai_quality_scores.values()):.1f}/100")
                 print(f"   • 最低AI质量分: {min(score.total_score for score in ai_quality_scores.values()):.1f}/100")
                 
@@ -301,7 +301,7 @@ class CreatorScoreCalculator:
                     print(f"     - 垃圾识别: {ai_score.spam_score:.1f}/5")
                     print(f"     - 推广识别: {ai_score.promotion_score:.1f}/5")
             else:
-                print(f"⚠️  没有AI质量评分数据，使用默认内容质量分: {self.content_quality_score}/100")
+                print(f"⚠️  没有AI质量评分数据，内容质量分为: {self.content_quality_score}/100")
                 print(f"   • 原因: 没有匹配关键词的视频或字幕提取失败")
             
             final_score = self._calculate_final_score_with_ai(
@@ -340,7 +340,7 @@ class CreatorScoreCalculator:
                 print(f"   • 基础分数: {base_score:.2f}")
                 print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
                 if ai_quality_scores:
-                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分替代默认60分")
+                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分AI智能评分")
             else:
                 print(f"   • 无视频数据，使用默认内容质量分数: {self.content_quality_score:.2f}")
                 print(f"   • 基础分数: {base_score:.2f}")
@@ -371,7 +371,7 @@ class CreatorScoreCalculator:
         
         单视频评分公式：
         Video Score = 内容互动数据 × 65% + 内容质量 × 35%
-        其中内容质量固定为60分
+        其中内容质量使用AI评分，无AI评分时为0分
         
         Args:
             video: 视频详情
@@ -411,7 +411,7 @@ class CreatorScoreCalculator:
         
         单视频评分公式：
         Video Score = 内容互动数据 × 65% + 内容质量 × 35%
-        其中内容质量：有AI评分时使用AI评分，否则使用固定60分
+        其中内容质量：有AI评分时使用AI评分，否则为0分
         
         Args:
             video: 视频详情
@@ -536,7 +536,7 @@ class CreatorScoreCalculator:
         save_weighted = creator_score.content_interaction.save_score * 0.15
         
         # 获取AI质量评分的平均分
-        avg_ai_score = 60.0  # 默认值
+        avg_ai_score = 0.0  # 默认值：无AI评分时为0分
         if ai_quality_scores:
             avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
         
@@ -752,7 +752,7 @@ class CreatorScoreCalculator:
             print(f"📋 新主评分公式:")
             print(f"   TikTok Creator Score = (40%峰值表现 + 40%近期状态 + 20%整体水平) × 账户质量加权")
             print(f"   其中: 每个视频评分 = 内容互动数据 × 65% + 内容质量 × 35%")
-            print(f"   内容质量固定为60分")
+            print(f"   内容质量使用AI评分，无AI评分时为0分")
             
             # 6. 🤖 集成AI质量评分到最终计算
             print(f"\n🤖 AI视频质量评分集成")
@@ -760,7 +760,7 @@ class CreatorScoreCalculator:
                 avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
                 print(f"📊 AI质量评分统计:")
                 print(f"   • 评分视频数: {len(ai_quality_scores)}")
-                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (替代默认60分)")
+                print(f"   • 平均AI质量分: {avg_ai_score:.1f}/100 (AI智能评分)")
                 print(f"   • 最高AI质量分: {max(score.total_score for score in ai_quality_scores.values()):.1f}/100")
                 print(f"   • 最低AI质量分: {min(score.total_score for score in ai_quality_scores.values()):.1f}/100")
                 
@@ -774,7 +774,7 @@ class CreatorScoreCalculator:
                     print(f"     - 垃圾识别: {ai_score.spam_score:.1f}/5")
                     print(f"     - 推广识别: {ai_score.promotion_score:.1f}/5")
             else:
-                print(f"⚠️  没有AI质量评分数据，使用默认内容质量分: {self.content_quality_score}/100")
+                print(f"⚠️  没有AI质量评分数据，内容质量分为: {self.content_quality_score}/100")
                 print(f"   • 原因: 没有匹配关键词的视频或字幕提取失败")
             
             final_score = self._calculate_final_score_with_ai(
@@ -814,7 +814,7 @@ class CreatorScoreCalculator:
                 print(f"   • 基础分数: {base_score:.2f}")
                 print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
                 if ai_quality_scores:
-                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分替代默认60分")
+                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分AI智能评分")
             else:
                 print(f"   • 无视频数据，使用默认内容质量分数: {self.content_quality_score:.2f}")
                 print(f"   • 基础分数: {base_score:.2f}")
