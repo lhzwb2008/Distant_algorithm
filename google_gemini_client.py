@@ -7,10 +7,20 @@ Google Gemini API客户端
 import logging
 import tempfile
 import os
+import time
 import requests
+import json
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 from config import Config
+
+# 尝试导入Google AI SDK
+try:
+    from google import genai
+    HAS_GENAI_SDK = True
+except ImportError:
+    HAS_GENAI_SDK = False
+    logging.warning("Google AI SDK未安装，将使用REST API方式")
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +51,18 @@ class GoogleGeminiClient:
             
         # 设置API端点
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        
+        # 初始化SDK客户端（如果可用）
+        self.genai_client = None
+        if HAS_GENAI_SDK and self.api_key:
+            try:
+                self.genai_client = genai.Client(api_key=self.api_key)
+                logger.info(f"✅ Google Gemini SDK客户端初始化完成 - 模型: {self.model}")
+            except Exception as e:
+                logger.warning(f"SDK初始化失败，将使用REST API: {e}")
+                self.genai_client = None
+        else:
+            logger.info(f"✅ Google Gemini REST客户端初始化完成 - 模型: {self.model}")
         
     def download_video(self, video_url: str, video_id: str) -> Optional[str]:
         """
@@ -90,104 +112,362 @@ class GoogleGeminiClient:
             文件URI，失败返回None
         """
         try:
-            logger.info("上传视频到Gemini Files API...")
+            start_time = time.time()
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            logger.info(f"上传视频到Gemini Files API... (文件大小: {file_size_mb:.2f}MB)")
             
-            # 上传文件
-            upload_url = f"{self.base_url}/files"
-            
-            with open(video_path, 'rb') as video_file:
-                files = {
-                    'file': ('video.mp4', video_file, 'video/mp4')
-                }
-                
-                headers = {
-                    'X-Goog-Api-Key': self.api_key
-                }
-                
-                response = requests.post(
-                    upload_url,
-                    files=files,
-                    headers=headers,
-                    timeout=self.timeout
-                )
-                response.raise_for_status()
-                
-                result = response.json()
-                file_uri = result.get('uri')
-                
-                if file_uri:
-                    logger.info(f"视频上传成功，URI: {file_uri}")
-                    return file_uri
-                else:
-                    logger.error("上传响应中未找到文件URI")
-                    return None
+            # 根据文件大小选择上传方式
+            # ≤20MB: 内联方式（base64编码）
+            # >20MB: Files API（避免请求体过大）
+            if file_size_mb > 20:
+                return self._upload_large_video(video_path, file_size_mb, start_time)
+            else:
+                return self._upload_small_video(video_path, file_size_mb, start_time)
                     
         except Exception as e:
-            logger.error(f"上传视频到Gemini失败: {e}")
+            upload_time = time.time() - start_time
+            logger.error(f"❌ 上传视频到Gemini失败 (耗时: {upload_time:.2f}秒): {e}")
             return None
     
-    def analyze_video_content(self, file_uri: str, video_description: str = "") -> Optional[VideoAnalysisResult]:
+    def _upload_large_video(self, video_path: str, file_size_mb: float, start_time: float) -> Optional[str]:
+        """上传大文件（>20MB）使用Files API - 优先使用SDK方式"""
+        logger.info("📤 使用Files API上传大文件...")
+        
+        # 优先尝试SDK方式
+        if self.genai_client:
+            try:
+                logger.info("📤 使用Google AI SDK上传文件...")
+                myfile = self.genai_client.files.upload(file=video_path)
+                upload_time = time.time() - start_time
+                logger.info(f"✅ SDK上传成功，URI: {myfile.uri}, 总耗时: {upload_time:.2f}秒")
+                
+                # 等待文件处理完成
+                logger.info("⏳ 等待文件处理完成...")
+                self._wait_for_file_active(myfile.name)
+                
+                return myfile.uri
+            except Exception as e:
+                logger.warning(f"SDK上传失败: {e}，尝试REST API方式")
+        
+        # 回退到REST API方式
+        try:
+            # 尝试多种上传方式
+            upload_attempts = [
+                # 方式1: 使用官方推荐的/upload/files端点
+                {
+                    'url': f"{self.base_url}/upload/files",
+                    'method': 'multipart_with_metadata',
+                    'description': '官方/upload/files端点'
+                },
+                # 方式2: 使用基础/files端点
+                {
+                    'url': f"{self.base_url}/files",
+                    'method': 'multipart_simple',
+                    'description': '基础/files端点'
+                }
+            ]
+            
+            for attempt in upload_attempts:
+                logger.info(f"📤 尝试上传方式: {attempt['description']}")
+                
+                headers = {
+                    'X-Goog-Api-Key': self.api_key,
+                }
+                
+                with open(video_path, 'rb') as video_file:
+                    if attempt['method'] == 'multipart_with_metadata':
+                        files = {
+                            'file': (os.path.basename(video_path), video_file, 'video/mp4')
+                        }
+                        data = {
+                            'displayName': os.path.basename(video_path)
+                        }
+                        upload_response = requests.post(
+                            attempt['url'],
+                            files=files,
+                            data=data,
+                            headers=headers,
+                            timeout=self.timeout
+                        )
+                    else:  # multipart_simple
+                        files = {
+                            'file': (os.path.basename(video_path), video_file, 'video/mp4')
+                        }
+                        upload_response = requests.post(
+                            attempt['url'],
+                            files=files,
+                            headers=headers,
+                            timeout=self.timeout
+                        )
+                
+                    upload_time = time.time() - start_time
+                    logger.info(f"📤 上传请求完成，耗时: {upload_time:.2f}秒")
+                    logger.info(f"📋 上传响应状态: {upload_response.status_code}")
+                    logger.info(f"📋 上传响应头: {dict(upload_response.headers)}")
+                    logger.info(f"📋 上传响应内容: {upload_response.text}")
+                    
+                    if upload_response.status_code in [200, 201]:
+                        # 解析响应获取文件URI
+                        try:
+                            result = upload_response.json()
+                            logger.info(f"📋 完整上传响应: {result}")
+                            
+                            # 检查多种可能的URI字段
+                            file_uri = (result.get('file', {}).get('uri') or 
+                                       result.get('uri') or 
+                                       result.get('name'))
+                            
+                            if file_uri:
+                                # 如果只是文件名，构建完整URI
+                                if not file_uri.startswith('http'):
+                                    file_uri = f"https://generativelanguage.googleapis.com/v1beta/files/{file_uri}"
+                                
+                                logger.info(f"✅ 大文件上传成功，URI: {file_uri}, 总耗时: {upload_time:.2f}秒")
+                                return file_uri
+                            else:
+                                logger.warning(f"❌ {attempt['description']} 响应中未找到文件URI，尝试下一种方式")
+                                continue  # 尝试下一种上传方式
+                                
+                        except json.JSONDecodeError:
+                            logger.warning(f"❌ {attempt['description']} 响应不是有效的JSON格式，尝试下一种方式")
+                            continue  # 尝试下一种上传方式
+                    else:
+                        logger.warning(f"❌ {attempt['description']} 上传失败，状态码: {upload_response.status_code}，尝试下一种方式")
+                        continue  # 尝试下一种上传方式
+            
+            # 所有上传方式都失败了
+            logger.error("❌ 所有Files API上传方式都失败")
+            return self._fallback_to_inline(video_path, file_size_mb, start_time)
+                
+        except Exception as e:
+            upload_time = time.time() - start_time
+            logger.error(f"❌ 上传大文件失败 (耗时: {upload_time:.2f}秒): {e}")
+            # 降级到内联方式
+            return self._fallback_to_inline(video_path, file_size_mb, start_time)
+    
+    def _fallback_to_inline(self, video_path: str, file_size_mb: float, start_time: float) -> Optional[str]:
+        """降级方案：根据文件大小选择合适的处理方式"""
+        if file_size_mb > 20:
+            # 大文件无法使用内联方式，跳过此视频
+            logger.error(f"❌ 文件太大 ({file_size_mb:.2f}MB)，超过内联方式限制(20MB)，且Files API不可用")
+            logger.error("📋 建议：检查Google Gemini Files API配置或网络连接")
+            upload_time = time.time() - start_time
+            logger.error(f"❌ 大文件处理失败 (耗时: {upload_time:.2f}秒)")
+            return None
+        else:
+            # 小文件可以降级到内联方式
+            logger.info(f"📤 降级处理：对 {file_size_mb:.2f}MB 文件使用内联方式...")
+            try:
+                upload_time = time.time() - start_time
+                logger.info(f"✅ 降级到内联方式，耗时: {upload_time:.2f}秒")
+                return f"inline:{video_path}"
+            except Exception as e:
+                upload_time = time.time() - start_time
+                logger.error(f"❌ 降级方案也失败 (耗时: {upload_time:.2f}秒): {e}")
+                return None
+    
+    def _wait_for_file_active(self, file_name: str, max_wait_time: int = 60) -> bool:
+        """等待文件变为ACTIVE状态"""
+        if not self.genai_client:
+            return False
+            
+        start_time = time.time()
+        while time.time() - start_time < max_wait_time:
+            try:
+                file_info = self.genai_client.files.get(name=file_name)
+                if file_info.state.name == 'ACTIVE':
+                    wait_time = time.time() - start_time
+                    logger.info(f"✅ 文件已激活，等待时间: {wait_time:.2f}秒")
+                    return True
+                elif file_info.state.name == 'FAILED':
+                    logger.error(f"❌ 文件处理失败: {file_info.state}")
+                    return False
+                else:
+                    logger.info(f"📋 文件状态: {file_info.state.name}，继续等待...")
+                    time.sleep(2)  # 等待2秒后重试
+            except Exception as e:
+                logger.warning(f"检查文件状态失败: {e}")
+                time.sleep(2)
+        
+        logger.error(f"❌ 文件激活超时（{max_wait_time}秒）")
+        return False
+    
+    def _upload_small_video(self, video_path: str, file_size_mb: float, start_time: float) -> Optional[str]:
+        """上传小文件（≤20MB）使用内联方式"""
+        logger.info("📤 使用内联方式上传小文件...")
+        
+        # 小文件直接返回路径，在analyze_video_content中处理
+        upload_time = time.time() - start_time
+        logger.info(f"✅ 小文件准备完成，将使用内联方式，耗时: {upload_time:.2f}秒")
+        return f"inline:{video_path}"
+    
+    def analyze_video_content(self, file_uri: str, video_description: str = "", video_id: str = "") -> Optional[VideoAnalysisResult]:
         """
         使用Gemini分析视频内容并评分
         
         Args:
-            file_uri: Gemini文件URI
+            file_uri: Gemini文件URI 或 内联文件路径（以"inline:"开头）
             video_description: 视频描述（可选）
+            video_id: 视频ID（用于标识和日志）
             
         Returns:
             视频分析结果
         """
         try:
-            logger.info("开始使用Gemini分析视频内容...")
+            start_time = time.time()
+            logger.info("🤖 开始使用Gemini分析视频内容...")
             
-            # 构建评分提示词
-            prompt = self._build_analysis_prompt(video_description)
-            
-            # 调用Gemini API
-            generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
-            
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {
-                                "fileData": {
-                                    "fileUri": file_uri
-                                }
-                            },
-                            {
-                                "text": prompt
-                            }
-                        ]
-                    }
-                ]
-            }
-            
-            headers = {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': self.api_key
-            }
-            
-            response = requests.post(
-                generate_url,
-                json=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-            
-            result = response.json()
-            
-            # 解析响应
-            if 'candidates' in result and result['candidates']:
-                content = result['candidates'][0]['content']['parts'][0]['text']
-                return self._parse_analysis_result(content, "unknown")
+            # 判断是大文件（Files API）还是小文件（内联）
+            if file_uri.startswith("inline:"):
+                return self._analyze_video_inline(file_uri[7:], video_description, start_time)
             else:
-                logger.error("Gemini响应中未找到分析结果")
-                return None
+                return self._analyze_video_with_file_api(file_uri, video_description, start_time, video_id)
                 
         except Exception as e:
-            logger.error(f"Gemini视频分析失败: {e}")
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ Gemini视频分析失败 (耗时: {analysis_time:.2f}秒): {e}")
+            return None
+    
+    def _analyze_video_with_file_api(self, file_uri: str, video_description: str, start_time: float, video_id: str = "") -> Optional[VideoAnalysisResult]:
+        """使用Files API方式分析视频 - 优先使用SDK"""
+        logger.info("📤 使用Files API方式分析大文件...")
+        
+        # 构建评分提示词
+        prompt = self._build_analysis_prompt(video_description)
+        
+        # 优先尝试SDK方式
+        if self.genai_client:
+            try:
+                logger.info("📤 使用Google AI SDK分析文件...")
+                
+                # 从URI获取文件对象
+                file_name = file_uri.split('/')[-1]
+                myfile = self.genai_client.files.get(name=f"files/{file_name}")
+                
+                response = self.genai_client.models.generate_content(
+                    model=self.model, 
+                    contents=[myfile, prompt]
+                )
+                
+                analysis_time = time.time() - start_time
+                logger.info(f"✅ SDK分析完成，响应长度: {len(response.text)} 字符，总耗时: {analysis_time:.2f}秒")
+                
+                # 使用传入的video_id或从文件URI提取文件名作为标识
+                identifier = video_id if video_id else file_uri.split('/')[-1]
+                return self._parse_analysis_result(response.text, identifier)
+                
+            except Exception as e:
+                logger.warning(f"SDK分析失败: {e}，尝试REST API方式")
+        
+        # 回退到REST API方式
+        logger.info("📤 使用REST API分析文件...")
+        
+        # 调用Gemini API
+        generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
+        
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "fileData": {
+                                "fileUri": file_uri
+                            }
+                        },
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': self.api_key
+        }
+        
+        response = requests.post(
+            generate_url,
+            json=payload,
+            headers=headers,
+            timeout=self.timeout
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # 解析响应
+        if 'candidates' in result and result['candidates']:
+            content = result['candidates'][0]['content']['parts'][0]['text']
+            analysis_time = time.time() - start_time
+            logger.info(f"✅ Gemini视频分析完成，总耗时: {analysis_time:.2f}秒")
+            return self._parse_analysis_result(content, "unknown")
+        else:
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ Gemini响应中未找到分析结果，耗时: {analysis_time:.2f}秒")
+            return None
+    
+    def _analyze_video_inline(self, video_path: str, video_description: str, start_time: float) -> Optional[VideoAnalysisResult]:
+        """使用内联方式分析小文件（<20MB）"""
+        logger.info("📤 使用内联方式分析小文件...")
+        
+        # 构建评分提示词
+        prompt = self._build_analysis_prompt(video_description)
+        
+        # 读取视频文件
+        with open(video_path, 'rb') as video_file:
+            video_bytes = video_file.read()
+        
+        # 使用base64编码
+        import base64
+        video_base64 = base64.b64encode(video_bytes).decode('utf-8')
+        
+        # 调用Gemini API
+        generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
+        
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": "video/mp4",
+                                "data": video_base64
+                            }
+                        },
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': self.api_key
+        }
+        
+        response = requests.post(
+            generate_url,
+            json=payload,
+            headers=headers,
+            timeout=self.timeout
+        )
+        response.raise_for_status()
+        
+        result = response.json()
+        
+        # 解析响应
+        if 'candidates' in result and result['candidates']:
+            content = result['candidates'][0]['content']['parts'][0]['text']
+            analysis_time = time.time() - start_time
+            logger.info(f"✅ Gemini内联视频分析完成，总耗时: {analysis_time:.2f}秒")
+            return self._parse_analysis_result(content, "unknown")
+        else:
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ Gemini内联视频分析失败 (耗时: {analysis_time:.2f}秒): 未找到有效响应")
             return None
     
     def _build_analysis_prompt(self, video_description: str = "") -> str:
@@ -294,7 +574,7 @@ class GoogleGeminiClient:
                 file_uri = self.upload_video_to_gemini(temp_file_path)
                 if not file_uri:
                     return None
-                result = self.analyze_video_content(file_uri, video_description)
+                result = self.analyze_video_content(file_uri, video_description, video_id)
             else:
                 # 小文件：直接内联处理
                 result = self._analyze_video_inline(temp_file_path, video_id, video_description)
@@ -309,7 +589,9 @@ class GoogleGeminiClient:
     def _analyze_video_inline(self, video_path: str, video_id: str, video_description: str) -> Optional[VideoAnalysisResult]:
         """内联分析小视频文件"""
         try:
-            logger.info(f"使用内联方式分析视频 {video_id}...")
+            start_time = time.time()
+            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+            logger.info(f"🤖 使用内联方式分析视频 {video_id}... (文件大小: {file_size_mb:.2f}MB)")
             
             # 检查API密钥
             if not self.api_key:
@@ -370,22 +652,27 @@ class GoogleGeminiClient:
             
             if 'candidates' in result and result['candidates']:
                 content = result['candidates'][0]['content']['parts'][0]['text']
-                logger.info(f"✅ Gemini分析完成，响应长度: {len(content)} 字符")
+                analysis_time = time.time() - start_time
+                logger.info(f"✅ Gemini分析完成，响应长度: {len(content)} 字符，总耗时: {analysis_time:.2f}秒")
                 return self._parse_analysis_result(content, video_id)
             else:
-                logger.error(f"Gemini响应格式异常: {result}")
+                analysis_time = time.time() - start_time
+                logger.error(f"❌ Gemini响应格式异常 (耗时: {analysis_time:.2f}秒): {result}")
                 return None
                 
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Gemini API连接错误: {e}")
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ Gemini API连接错误 (耗时: {analysis_time:.2f}秒): {e}")
             logger.info("💡 可能的解决方案:")
             logger.info("   1. 检查网络连接")
             logger.info("   2. 检查Google API Key是否有效")
             logger.info("   3. 检查是否需要VPN访问Google服务")
             return None
         except requests.exceptions.Timeout as e:
-            logger.error(f"Gemini API超时: {e}")
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ Gemini API超时 (耗时: {analysis_time:.2f}秒): {e}")
             return None
         except Exception as e:
-            logger.error(f"内联视频分析失败: {e}")
+            analysis_time = time.time() - start_time
+            logger.error(f"❌ 内联视频分析失败 (耗时: {analysis_time:.2f}秒): {e}")
             return None

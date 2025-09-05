@@ -84,9 +84,8 @@ class TiKhubAPIClient:
                     logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
                     logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     if attempt == Config.TIKHUB_MAX_RETRIES - 1:
-                        logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
-                        import sys
-                        sys.exit(1)
+                        logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次")
+                        raise e
                 time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
     
     def _generate_curl_command(self, url: str, params: Dict[str, Any] = None) -> str:
@@ -100,14 +99,13 @@ class TiKhubAPIClient:
         else:
             full_url = url
         
-        # 构建curl命令
+        # 构建curl命令 - 单行格式便于复制
         headers = []
         for key, value in self.session.headers.items():
             headers.append(f'-H "{key}: {value}"')
         
-        curl_command = f'''curl -X GET \\
-  "{full_url}" \\
-  {' '.join(headers)}'''
+        # 添加常用的curl选项
+        curl_command = f'curl -X GET "{full_url}" {" ".join(headers)} --compressed | jq .'
         
         return curl_command
                 

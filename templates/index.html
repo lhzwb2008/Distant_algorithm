@@ -243,7 +243,16 @@
         
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>正在分析创作者数据，请稍候...</p>
+            <p id="loadingText">正在分析创作者数据，请稍候...</p>
+            <div style="margin-top: 15px; font-size: 14px; color: #666; line-height: 1.5;">
+                <div>📊 正在获取用户视频数据...</div>
+                <div>🤖 AI视频内容分析中...</div>
+                <div>⏱️ 预计需要 1-3 分钟</div>
+                <div style="margin-top: 10px; padding: 8px; background-color: #e3f2fd; border-radius: 6px; font-size: 12px;">
+                    💡 <strong>提示：</strong>视频分析时间取决于视频数量和大小。<br>
+                    现在默认使用低清晰度视频以加快处理速度。
+                </div>
+            </div>
         </div>
         
         <div class="result" id="result">
@@ -266,6 +275,9 @@
             }
         }
         
+        let currentTaskId = null;
+        let pollingInterval = null;
+        
         document.getElementById('scoreForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -282,12 +294,13 @@
             
             // 显示加载状态
             submitBtn.disabled = true;
-            submitBtn.textContent = '计算中...';
+            submitBtn.textContent = '提交中...';
             loading.style.display = 'block';
             result.style.display = 'none';
             
             try {
-                const response = await fetch('/calculate_score', {
+                // 提交异步任务
+                const response = await fetch('/submit_task', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -300,15 +313,91 @@
                 
                 const data = await response.json();
                 
-                // 隐藏加载状态
+                if (data.success) {
+                    currentTaskId = data.task_id;
+                    submitBtn.textContent = '处理中...';
+                    updateLoadingStatus('任务已提交，开始处理...');
+                    
+                    // 开始轮询任务状态
+                    pollingInterval = setInterval(checkTaskStatus, 5000); // 每5秒检查一次
+                } else {
+                    throw new Error(data.error || '提交任务失败');
+                }
+                
+            } catch (error) {
+                // 隐藏加载状态并重置按钮
                 loading.style.display = 'none';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '开始评分';
+                
+                // 显示错误信息
+                result.className = 'result error';
+                result.innerHTML = `
+                    <h3>❌ 请求失败</h3>
+                    <p>网络错误: ${error.message}</p>
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                        <h4>🔍 可能的原因:</h4>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>网络连接不稳定</li>
+                            <li>服务器正在处理大量请求</li>
+                        </ul>
+                        <p><strong>建议:</strong> 请等待几分钟后重试</p>
+                    </div>
+                `;
+                result.style.display = 'block';
+            }
+        });
+        
+        function updateLoadingStatus(message) {
+            const loadingText = document.querySelector('#loading p');
+            if (loadingText) {
+                loadingText.textContent = message;
+            }
+        }
+        
+        async function checkTaskStatus() {
+            if (!currentTaskId) return;
+            
+            try {
+                const response = await fetch(`/task_status/${currentTaskId}`);
+                const data = await response.json();
                 
                 if (data.success) {
-                    // 显示成功结果
-                    result.className = 'result success';
+                    updateLoadingStatus(data.progress || '处理中...');
                     
-                    // 构建详细分解HTML
-                    const breakdown = data.breakdown;
+                    if (data.status === 'completed') {
+                        // 任务完成，停止轮询
+                        clearInterval(pollingInterval);
+                        displayResult(data.result);
+                    } else if (data.status === 'failed') {
+                        // 任务失败，停止轮询
+                        clearInterval(pollingInterval);
+                        displayError(data.error || '任务处理失败');
+                    }
+                    // 如果状态是 'pending' 或 'processing'，继续轮询
+                }
+            } catch (error) {
+                console.error('检查任务状态失败:', error);
+                // 继续轮询，不中断
+            }
+        }
+        
+        function displayResult(data) {
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // 重置状态
+            loading.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = '开始评分';
+            currentTaskId = null;
+            
+            // 显示成功结果
+            result.className = 'result success';
+            
+            // 构建详细分解HTML
+            const breakdown = data.breakdown;
                     const breakdownHTML = `
                         <div class="breakdown" id="breakdown" style="display: none;">
                             <h4>📊 详细计算过程</h4>
@@ -529,11 +618,28 @@
                 // 隐藏加载状态
                 loading.style.display = 'none';
                 
-                // 显示网络错误
+                // 显示具体的错误信息
                 result.className = 'result error';
+                let errorMessage = '请检查网络连接或稍后重试';
+                
+                if (error.name === 'AbortError') {
+                    errorMessage = '请求超时（5分钟），可能是因为视频分析时间较长。请稍后重试或联系管理员。';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMessage = '无法连接到服务器，请检查网络连接。';
+                } else if (error.message) {
+                    errorMessage = `网络错误: ${error.message}`;
+                }
+                
                 result.innerHTML = `
-                    <h3>❌ 网络错误</h3>
-                    <p>请检查网络连接或稍后重试</p>
+                    <h3>❌ 请求失败</h3>
+                    <p>${errorMessage}</p>
+                    <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; font-size: 14px;">
+                        <strong>💡 可能的原因：</strong><br>
+                        • 视频分析需要较长时间（特别是大视频文件）<br>
+                        • 网络连接不稳定<br>
+                        • 服务器正在处理大量请求<br><br>
+                        <strong>建议：</strong> 请等待几分钟后重试，或尝试分析视频数量较少的账户。
+                    </div>
                 `;
                 result.style.display = 'block';
             } finally {
