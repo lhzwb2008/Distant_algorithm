@@ -603,51 +603,38 @@
                         </div>
                         ${breakdownHTML}
                     `;
-                } else {
-                    // 显示错误结果
-                    result.className = 'result error';
-                    result.innerHTML = `
-                        <h3>❌ 评分失败</h3>
-                        <p>${data.error}</p>
-                    `;
-                }
                 
                 result.style.display = 'block';
-                
-            } catch (error) {
-                // 隐藏加载状态
-                loading.style.display = 'none';
-                
-                // 显示具体的错误信息
-                result.className = 'result error';
-                let errorMessage = '请检查网络连接或稍后重试';
-                
-                if (error.name === 'AbortError') {
-                    errorMessage = '请求超时（5分钟），可能是因为视频分析时间较长。请稍后重试或联系管理员。';
-                } else if (error.message.includes('Failed to fetch')) {
-                    errorMessage = '无法连接到服务器，请检查网络连接。';
-                } else if (error.message) {
-                    errorMessage = `网络错误: ${error.message}`;
-                }
-                
-                result.innerHTML = `
-                    <h3>❌ 请求失败</h3>
-                    <p>${errorMessage}</p>
-                    <div style="margin-top: 15px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; font-size: 14px;">
-                        <strong>💡 可能的原因：</strong><br>
-                        • 视频分析需要较长时间（特别是大视频文件）<br>
-                        • 网络连接不稳定<br>
-                        • 服务器正在处理大量请求<br><br>
-                        <strong>建议：</strong> 请等待几分钟后重试，或尝试分析视频数量较少的账户。
-                    </div>
-                `;
-                result.style.display = 'block';
-            } finally {
-                // 恢复按钮状态
-                submitBtn.disabled = false;
-                submitBtn.textContent = '开始评分';
-            }
-        });
+        }
+        
+        function displayError(errorMessage) {
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // 重置状态
+            loading.style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = '开始评分';
+            currentTaskId = null;
+            
+            // 显示错误信息
+            result.className = 'result error';
+            result.innerHTML = `
+                <h3>❌ 处理失败</h3>
+                <p>${errorMessage}</p>
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                    <h4>🔍 可能的原因:</h4>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>视频分析需要较长时间（特别是大视频文件）</li>
+                        <li>网络连接不稳定</li>
+                        <li>服务器正在处理大量请求</li>
+                    </ul>
+                    <p><strong>建议:</strong> 请等待几分钟后重试，或尝试分析视频数量较少的账户</p>
+                </div>
+            `;
+            result.style.display = 'block';
+        }
     </script>
 </body>
 </html>
