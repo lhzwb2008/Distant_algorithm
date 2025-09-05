@@ -30,6 +30,7 @@ class Config:
     OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
     OPENROUTER_TEMPERATURE = float(os.getenv('OPENROUTER_TEMPERATURE', '0.3'))
     OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
+    OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv('OPENROUTER_CONCURRENT_REQUESTS', '20'))  # 并发请求数
     
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
@@ -258,6 +259,7 @@ class Config:
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,
             'openrouter_model': cls.OPENROUTER_MODEL,
+            'openrouter_concurrent_requests': cls.OPENROUTER_CONCURRENT_REQUESTS,
             'subtitle_extraction_enabled': cls.ENABLE_SUBTITLE_EXTRACTION,
             'data_range': {
                 'account_quality_days': cls.ACCOUNT_QUALITY_DAYS,

@@ -193,6 +193,7 @@ TIKHUB_BASE_URL=https://api.tikhub.dev
 
 # OpenRouter API配置（用于AI视频质量评分）
 OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_CONCURRENT_REQUESTS=20  # 并发请求数，默认20
 
 # 字幕提取开关（默认关闭）
 # 设置为 true 启用字幕提取和AI评分
