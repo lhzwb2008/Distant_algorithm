@@ -21,6 +21,7 @@ class Config:
     TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 使用正确的API URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
     TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '25'))  # 增加到25次，确保覆盖限流恢复时间
+    TIKHUB_CONCURRENT_REQUESTS = int(os.getenv('TIKHUB_CONCURRENT_REQUESTS', '10'))  # TikHub API并发数限制为10
     
     # OpenRouter API配置 - 用于视频质量评分
     # 注意：OPENROUTER_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
@@ -30,13 +31,13 @@ class Config:
     OPENROUTER_REQUEST_TIMEOUT = int(os.getenv('OPENROUTER_REQUEST_TIMEOUT', '60'))
     OPENROUTER_TEMPERATURE = float(os.getenv('OPENROUTER_TEMPERATURE', '0.3'))
     OPENROUTER_MAX_TOKENS = int(os.getenv('OPENROUTER_MAX_TOKENS', '2000'))
-    OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv('OPENROUTER_CONCURRENT_REQUESTS', '20'))  # 并发请求数
+    OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv('OPENROUTER_CONCURRENT_REQUESTS', '10'))  # 并发请求数
     
     # Google Gemini API配置 - 用于视频内容分析（当字幕提取关闭时使用）
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
     GOOGLE_MODEL = os.getenv('GOOGLE_MODEL', 'models/gemini-2.5-flash')
     GOOGLE_REQUEST_TIMEOUT = int(os.getenv('GOOGLE_REQUEST_TIMEOUT', '120'))  # 视频处理需要更长时间
-    GOOGLE_CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_CONCURRENT_REQUESTS', '5'))  # Google API并发数，建议较低
+    GOOGLE_CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_CONCURRENT_REQUESTS', '10'))  # Google API并发数，建议较低
     
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
@@ -267,6 +268,7 @@ class Config:
             'openrouter_api_configured': bool(cls.OPENROUTER_API_KEY),
             'google_api_configured': bool(cls.GOOGLE_API_KEY),
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
+            'tikhub_concurrent_requests': cls.TIKHUB_CONCURRENT_REQUESTS,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,
             'openrouter_model': cls.OPENROUTER_MODEL,
             'openrouter_concurrent_requests': cls.OPENROUTER_CONCURRENT_REQUESTS,

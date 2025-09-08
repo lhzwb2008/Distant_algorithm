@@ -5,6 +5,7 @@
 """
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Dict, Any, List
 from config import Config
@@ -99,9 +100,10 @@ class VideoContentAnalyzer:
             return {}
             
         total_videos = len(videos)
-        concurrent_requests = min(Config.GOOGLE_CONCURRENT_REQUESTS, total_videos)
+        # 使用 TikHub API 并发限制，因为每个视频都需要调用 fetch_one_video API
+        concurrent_requests = min(Config.TIKHUB_CONCURRENT_REQUESTS, total_videos)
         
-        logger.info(f"🤖 使用Google Gemini视频分析模式，共 {total_videos} 个视频，并发数: {concurrent_requests}")
+        logger.info(f"🤖 使用Google Gemini视频分析模式，共 {total_videos} 个视频，并发数: {concurrent_requests} (受TikHub API限制)")
         
         results = {}
         completed_count = 0
@@ -152,6 +154,9 @@ class VideoContentAnalyzer:
     def _analyze_single_video_with_gemini(self, video: VideoDetail) -> Optional[QualityScore]:
         """使用Google Gemini分析单个视频"""
         try:
+            # 添加小延迟以避免API限流 (10次/秒 = 0.1秒间隔)
+            time.sleep(0.1)
+            
             # 获取视频下载URL
             video_url = self._get_video_download_url(video.video_id)
             if not video_url:
@@ -177,7 +182,7 @@ class VideoContentAnalyzer:
             return None
     
     def _get_video_download_url(self, video_id: str) -> Optional[str]:
-        """获取视频下载URL"""
+        """获取视频下载URL，优先选择 lowest_540_1 清晰度"""
         try:
             # 调用fetch_one_video API获取下载URL
             params = {'aweme_id': video_id}
@@ -199,17 +204,66 @@ class VideoContentAnalyzer:
                 logger.error(f"获取视频 {video_id} 详情失败：未找到预期的数据结构，可用键: {list(data.keys())}")
                 return None
             
-            # 提取下载URL - 优先无水印，备用有水印
             aweme_detail = video_data.get('aweme_detail', {})
             video_info = aweme_detail.get('video', {})
             
-            # 尝试获取无水印版本
+            # 优先尝试从 bit_rate 数组中获取 lowest_540_1 清晰度
+            bit_rate_list = video_info.get('bit_rate', [])
+            if bit_rate_list and isinstance(bit_rate_list, list):
+                logger.info(f"📺 视频 {video_id} 可用清晰度数量: {len(bit_rate_list)}")
+                
+                # 寻找 lowest_540_1 清晰度
+                for quality_option in bit_rate_list:
+                    if isinstance(quality_option, dict):
+                        gear_name = quality_option.get('gear_name', '')
+                        if gear_name == 'lowest_540_1':
+                            play_addr = quality_option.get('play_addr', {})
+                            url_list = play_addr.get('url_list', [])
+                            if url_list:
+                                download_url = url_list[0]
+                                quality_info = f"{quality_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
+                                logger.info(f"✅ 获取视频 {video_id} lowest_540_1清晰度URL成功 ({quality_info})")
+                                return download_url
+                
+                # 如果没找到 lowest_540_1，尝试其他低清晰度选项
+                logger.info(f"⚠️ 视频 {video_id} 没有 lowest_540_1 清晰度，尝试其他低清晰度...")
+                
+                # 按优先级尝试其他清晰度：lower_540_1 > adapt_540_1 > 其他
+                preferred_gears = ['lower_540_1', 'adapt_540_1']
+                for preferred_gear in preferred_gears:
+                    for quality_option in bit_rate_list:
+                        if isinstance(quality_option, dict):
+                            gear_name = quality_option.get('gear_name', '')
+                            if gear_name == preferred_gear:
+                                play_addr = quality_option.get('play_addr', {})
+                                url_list = play_addr.get('url_list', [])
+                                if url_list:
+                                    download_url = url_list[0]
+                                    quality_info = f"{quality_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
+                                    logger.info(f"✅ 获取视频 {video_id} {gear_name}清晰度URL成功 ({quality_info})")
+                                    return download_url
+                
+                # 如果还没找到，使用最低码率的选项
+                logger.info(f"⚠️ 视频 {video_id} 没有预期的清晰度选项，选择最低码率...")
+                lowest_bitrate_option = min(bit_rate_list, key=lambda x: x.get('bit_rate', float('inf')) if isinstance(x, dict) else float('inf'))
+                if isinstance(lowest_bitrate_option, dict):
+                    play_addr = lowest_bitrate_option.get('play_addr', {})
+                    url_list = play_addr.get('url_list', [])
+                    if url_list:
+                        download_url = url_list[0]
+                        gear_name = lowest_bitrate_option.get('gear_name', 'unknown')
+                        quality_info = f"{lowest_bitrate_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
+                        logger.info(f"✅ 获取视频 {video_id} {gear_name}清晰度URL成功 ({quality_info})")
+                        return download_url
+            
+            # 回退到原有逻辑：尝试获取无水印版本
+            logger.info(f"⚠️ 视频 {video_id} bit_rate数组不可用，回退到传统方式...")
             download_no_watermark = video_info.get('download_no_watermark_addr', {})
             no_watermark_urls = download_no_watermark.get('url_list', [])
             
             if no_watermark_urls:
                 download_url = no_watermark_urls[0]
-                logger.info(f"✅ 获取视频 {video_id} 无水印下载URL成功")
+                logger.info(f"✅ 获取视频 {video_id} 无水印下载URL成功 (传统方式)")
                 return download_url
             
             # 如果没有无水印版本，尝试有水印版本
@@ -219,16 +273,18 @@ class VideoContentAnalyzer:
             
             if watermark_urls:
                 download_url = watermark_urls[0]
-                logger.info(f"✅ 获取视频 {video_id} 有水印下载URL成功")
+                logger.info(f"✅ 获取视频 {video_id} 有水印下载URL成功 (传统方式)")
                 return download_url
             
             # 都没有找到
-            logger.error(f"❌ 视频 {video_id} 没有可用的下载URL（无水印和有水印都不可用）")
+            logger.error(f"❌ 视频 {video_id} 没有可用的下载URL")
             logger.info(f"🔍 视频结构调试:")
             logger.info(f"   - aweme_detail存在: {bool(aweme_detail)}")
             logger.info(f"   - video存在: {bool(video_info)}")
             if video_info:
                 logger.info(f"   - video对象的键: {list(video_info.keys())}")
+                if bit_rate_list:
+                    logger.info(f"   - 可用清晰度: {[q.get('gear_name', 'unknown') for q in bit_rate_list if isinstance(q, dict)]}")
             return None
                 
         except Exception as e:
@@ -262,8 +318,9 @@ class VideoContentAnalyzer:
             return {
                 'mode': 'video_analysis',
                 'description': 'Google Gemini视频内容分析',
-                'api_used': 'Google Gemini',
-                'concurrent_requests': Config.GOOGLE_CONCURRENT_REQUESTS,
+                'api_used': 'Google Gemini + TikHub',
+                'concurrent_requests': Config.TIKHUB_CONCURRENT_REQUESTS,
                 'requires_subtitle': False,
-                'requires_video_download': True
+                'requires_video_download': True,
+                'note': 'Gemini分析受TikHub API限流影响 (10次/秒)'
             }

@@ -121,14 +121,13 @@ class TiKhubAPIClient:
         else:
             full_url = url
         
-        # 构建curl命令
+        # 构建curl命令 - 单行格式便于复制
         headers = []
         for key, value in self.session.headers.items():
             headers.append(f'-H "{key}: {value}"')
         
-        curl_command = f'''curl -X GET \\
-  "{full_url}" \\
-  {' '.join(headers)}'''
+        # 添加常用的curl选项
+        curl_command = f'curl -X GET "{full_url}" {" ".join(headers)} --compressed | jq .'
         
         return curl_command
                 
