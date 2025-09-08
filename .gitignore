@@ -182,3 +182,5 @@ Desktop.ini
 test_results/
 temp/
 tmp/
+
+*.xlsx

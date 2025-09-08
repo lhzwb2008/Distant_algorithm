@@ -20,7 +20,7 @@ class Config:
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
     TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 使用正确的API URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
-    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '20'))
+    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '25'))  # 增加到25次，确保覆盖限流恢复时间
     
     # OpenRouter API配置 - 用于视频质量评分
     # 注意：OPENROUTER_API_KEY 必须在 .env 文件中配置，不提供默认值以确保安全
@@ -178,9 +178,12 @@ class Config:
     # 错误处理配置
     ERROR_HANDLING = {
         'max_retries': 3,
-        'retry_delay': 1,  # 重试延迟（秒）
+        'retry_delay': 3,  # 基础重试延迟（秒），配合指数退避
         'timeout_threshold': 30,  # 超时阈值（秒）
-        'rate_limit_delay': 60  # 限流延迟（秒）
+        'rate_limit_delay': 60,  # 限流延迟（秒）
+        'exponential_backoff': True,  # 启用指数退避
+        'backoff_factor': 1.5,  # 退避因子
+        'max_delay': 30  # 最大延迟时间（秒）
     }
     
     @classmethod

@@ -84,10 +84,31 @@ class TiKhubAPIClient:
                     logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
                     logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     if attempt == Config.TIKHUB_MAX_RETRIES - 1:
-                        logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，程序退出")
-                        import sys
-                        sys.exit(1)
-                time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
+                        logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，抛出异常")
+                        raise e
+                # 实现智能重试延迟
+                if Config.ERROR_HANDLING.get('exponential_backoff', False):
+                    # 指数退避策略，适应分钟级限流
+                    base_delay = Config.ERROR_HANDLING['retry_delay']
+                    backoff_factor = Config.ERROR_HANDLING.get('backoff_factor', 1.5)
+                    max_delay = Config.ERROR_HANDLING.get('max_delay', 30)
+                    
+                    # 计算延迟时间：基础延迟 * (退避因子 ^ 尝试次数)
+                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+                    
+                    # 对于400错误（通常是限流），使用更长的延迟
+                    if "400 Client Error" in str(e):
+                        delay = max(delay, 5)  # 至少5秒
+                        if attempt >= 10:  # 第10次重试后，使用更长延迟
+                            delay = max(delay, 15)  # 至少15秒
+                        if attempt >= 15:  # 第15次重试后，使用最长延迟
+                            delay = max(delay, 25)  # 至少25秒
+                    
+                    logger.info(f"等待 {delay:.1f} 秒后进行第 {attempt + 2} 次重试...")
+                    time.sleep(delay)
+                else:
+                    # 原有的线性延迟
+                    time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
     
     def _generate_curl_command(self, url: str, params: Dict[str, Any] = None) -> str:
         """生成curl命令供调试使用"""
