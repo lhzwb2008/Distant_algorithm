@@ -311,7 +311,8 @@ class TiKhubAPIClient:
             max_pages = max_videos_to_check // 20 + 1  # 计算需要的页数
         else:
             logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
-            max_pages = 1  # 无关键词时只需要一页
+            # 根据count参数计算需要的页数，每页20个视频
+            max_pages = (count + 19) // 20  # 向上取整
         
         all_videos = []
         cursor = 0
