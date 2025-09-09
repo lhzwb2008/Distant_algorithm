@@ -39,6 +39,10 @@ class Config:
     GOOGLE_REQUEST_TIMEOUT = int(os.getenv('GOOGLE_REQUEST_TIMEOUT', '120'))  # 视频处理需要更长时间
     GOOGLE_CONCURRENT_REQUESTS = int(os.getenv('GOOGLE_CONCURRENT_REQUESTS', '10'))  # Google API并发数，建议较低
     
+    # TikTok Cookie配置 - 用于提高搜索用户接口稳定性
+    TIKTOK_COOKIE = os.getenv('TIKTOK_COOKIE', '_ttp=2w7lTA0cgJBp2gUJc3PF3wsPp6h; passport_csrf_token=df9e1c3678591003198ba0e0ec3f1b9f; passport_csrf_token_default=df9e1c3678591003198ba0e0ec3f1b9f; tt_chain_token=FHZ3/DtH0vQVrmnAeg5tQw==; multi_sids=6680414398546691078%3Addcc4a16b689b9ebbd78515edab79fef; cmpl_token=AgQQAPPdF-RO0oyLdyfB9R0_8s2N3AmLv4_ZYN1URA; passport_auth_status=a82fc5260901336deb2d322922eddf78%2C; passport_auth_status_ss=a82fc5260901336deb2d322922eddf78%2C; uid_tt=9765e0ad3f05814a1e7b6b85f653213ba6bb8cec4519961c605f1b3a35184b4e; uid_tt_ss=9765e0ad3f05814a1e7b6b85f653213ba6bb8cec4519961c605f1b3a35184b4e; sid_tt=ddcc4a16b689b9ebbd78515edab79fef; sessionid=ddcc4a16b689b9ebbd78515edab79fef; sessionid_ss=ddcc4a16b689b9ebbd78515edab79fef; store-idc=alisg; store-country-code=cn; store-country-code-src=uid; tt-target-idc=alisg; tt-target-idc-sign=cZvf22OlNCYUO7jOrHUcYYgOvQXZldfqIgEBPfn1pgvijLcy8K4wt-1ErTNCNwFMorCGVWiEan3R-kgNPUUgAepS-VF1qrDJ8nY9FxZ9QZSIciAuSkK8oUXsVVjuvzsnH0bBGm58UiEjD0NJiszX33xH7RIBmnhMLPT9Dslyn4QyIuc_HQMtW4dQjiAm1Ijh94HH8nDJj-mhcXlAu3OeMXGKoWHYIsi4CRQp6LKLMctnaTfGzBEzavneqbQh1Gsdv3lNMkpJbjxQiVXRaIqE5px7cZ02EKByyCQWljsme-ZHL8yAj9Uvy_U-v5MY_JUrlxknsT2RbIfNo04KW0XlaVb4uX9b5c87Nc3ObMrB6OdGShG_vl3lmuC7kHW_mXpjc48CXVcFxr9ESOqe-O6eDbczhKi0tsSSaSqgzzfqx8ANpCWR1pK75TwTMkoqRSHyCy_PPhbMG6Up8T--dFyDG9k7pXiYy9DNUy64yliTiyT6QGCmYRCTXhaT-_gv7arC; sid_guard=ddcc4a16b689b9ebbd78515edab79fef%7C1756887409%7C15551989%7CMon%2C+02-Mar-2026+08%3A16%3A38+GMT; sid_ucp_v1=1.0.0-KGZhODIzZjk0MjQ1N2ZhZjUzZWRiNDY4ZWM3MWZhNDA3ZTRhNWY5YzIKGQiGiJ_OhLDm2lwQ8fLfxQYYsws4CEASSAQQAxoCbXkiIGRkY2M0YTE2YjY4OWI5ZWJiZDc4NTE1ZWRhYjc5ZmVm; ssid_ucp_v1=1.0.0-KGZhODIzZjk0MjQ1N2ZhZjUzZWRiNDY4ZWM3MWZhNDA3ZTRhNWY5YzIKGQiGiJ_OhLDm2lwQ8fLfxQYYsws4CEASSAQQAxoCbXkiIGRkY2M0YTE2YjY4OWI5ZWJiZDc4NTE1ZWRhYjc5ZmVm; tt_csrf_token=SpnMScxd-R3zTFWTPeAoh7lF5N48Z0RuaYXw; odin_tt=29ef7200291d2024071341255e3efa4e0928fa1d0f3d75e882718ff0f2bb7d7c11f09b51ae5d9d4e784351e973798c1abf7b8203fa50414b1c8c64a754cea72642e598784ce9cb9d2b29ded8fa64c520; ttwid=1%7C0erNcnvrlKEwK6PWEZS2HgEDFH-xOppJlHnCfMw_DSU%7C1757410558%7C21abc794004c737cb1517cafb4f99d87016247f507eb8b19149d16cfde70ca4f; store-country-sign=MEIEDGRgxAgztT5MSL5b3AQgihmlz89Qfo3f0m72HjKWyQCVhPWMJ8jMOC1WCyXBzz8EEPVWEiXhTAHXEB94bY01g9Y; msToken=OmeDT9ZI3JwBnlFXsVulbtvo5sOsMapnibOJOFWt4RtKZR-qy6sxcWfGhzvuoBoNa9RxNESiKOz-aI6dwqvzZ6JddLM0_Wou9GcejsLbiy4yGN53kP5xtS9ji3SLe8a6mFr-IsFxKka3pcuhV326suUCgou5')
+    ENABLE_COOKIE_AUTH = os.getenv('ENABLE_COOKIE_AUTH', 'true').lower() == 'true'  # 重新启用cookie认证
+    
     # 数据获取范围配置
     ACCOUNT_QUALITY_DAYS = int(os.getenv('ACCOUNT_QUALITY_DAYS', '90'))  # 维度一：账户质量分数据范围（天数）
     CONTENT_INTERACTION_MAX_VIDEOS = int(os.getenv('CONTENT_INTERACTION_MAX_VIDEOS', '100'))  # 维度二：内容互动分最大检查视频数
@@ -48,7 +52,8 @@ class Config:
         'user_profile': '/api/v1/tiktok/web/fetch_user_profile',
         'video_metrics': '/api/v1/tiktok/analytics/fetch_video_metrics',
         'video_detail': '/api/v1/tiktok/app/v3/fetch_one_video',
-        'user_videos': '/api/v1/tiktok/web/fetch_user_post'
+        'user_videos': '/api/v1/tiktok/web/fetch_user_post',
+        'search_user': '/api/v1/tiktok/web/fetch_search_user'
     }
     
     # API端点快捷访问
@@ -56,6 +61,7 @@ class Config:
     VIDEO_METRICS_ENDPOINT = API_ENDPOINTS['video_metrics']
     VIDEO_DETAIL_ENDPOINT = API_ENDPOINTS['video_detail']
     USER_VIDEOS_ENDPOINT = API_ENDPOINTS['user_videos']
+    SEARCH_USER_ENDPOINT = API_ENDPOINTS['search_user']
     
     # 字幕提取开关配置
     ENABLE_SUBTITLE_EXTRACTION = os.getenv('ENABLE_SUBTITLE_EXTRACTION', 'false').lower() == 'true'
@@ -267,6 +273,7 @@ class Config:
             'tikhub_api_configured': bool(cls.TIKHUB_API_KEY),
             'openrouter_api_configured': bool(cls.OPENROUTER_API_KEY),
             'google_api_configured': bool(cls.GOOGLE_API_KEY),
+            'tiktok_cookie_configured': bool(cls.TIKTOK_COOKIE),
             'tikhub_base_url': cls.TIKHUB_BASE_URL,
             'tikhub_concurrent_requests': cls.TIKHUB_CONCURRENT_REQUESTS,
             'openrouter_base_url': cls.OPENROUTER_BASE_URL,

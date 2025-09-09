@@ -31,12 +31,13 @@ class TiKhubAPIClient:
             'User-Agent': 'TikTok-Creator-Score/1.0.0'
         })
         
-    def _make_request(self, endpoint: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    def _make_request(self, endpoint: str, params: Dict[str, Any] = None, cookie: str = None) -> Dict[str, Any]:
         """发送API请求
         
         Args:
             endpoint: API端点
             params: 请求参数
+            cookie: 用户cookie（可选，用于搜索用户等需要登录态的接口）
             
         Returns:
             API响应数据
@@ -48,9 +49,23 @@ class TiKhubAPIClient:
         
         for attempt in range(Config.TIKHUB_MAX_RETRIES):
             try:
+                # 准备请求头和参数
+                headers = {}
+                
+                # 根据TiKhub API文档，尝试两种方式传递cookie
+                if cookie:
+                    if params is None:
+                        params = {}
+                    # 方式1：作为URL参数传递（TiKhub API文档方式）
+                    params['cookie'] = cookie
+                    # 方式2：同时也作为HTTP头传递（标准方式）
+                    headers['Cookie'] = cookie
+                    logger.debug(f"同时使用URL参数和HTTP头传递cookie: {cookie[:50]}...")
+                
                 response = self.session.get(
                     url, 
-                    params=params, 
+                    params=params,
+                    headers=headers,
                     timeout=Config.TIKHUB_REQUEST_TIMEOUT
                 )
                 response.raise_for_status()
@@ -822,16 +837,32 @@ class TiKhubAPIClient:
         logger.info(f"分页获取完成: 共获取 {len(all_videos)} 个最近三个月的视频（共 {page-1} 页）")
         return all_videos
         
-    def get_secuid_from_username(self, username: str) -> Optional[str]:
+    def get_secuid_from_username(self, username: str, cookie: str = None) -> Optional[str]:
         """通过用户名获取secUid
         
         Args:
             username: TikTok用户名
+            cookie: 用户cookie（可选，如果不提供则使用配置中的默认cookie）
             
         Returns:
             secUid字符串，如果获取失败返回None
         """
         try:
+            # 检查是否启用cookie认证
+            if not cookie and Config.ENABLE_COOKIE_AUTH and Config.TIKTOK_COOKIE:
+                cookie = Config.TIKTOK_COOKIE
+                logger.info(f"使用配置中的默认cookie搜索用户: {username}")
+            elif cookie:
+                logger.info(f"使用提供的cookie搜索用户: {username}")
+            else:
+                logger.info(f"不使用cookie搜索用户: {username} (cookie认证已禁用或cookie为空)")
+            
+            # 验证cookie是否存在
+            if cookie:
+                logger.debug(f"Cookie长度: {len(cookie)} 字符")
+            else:
+                logger.info(f"使用无cookie模式，可能受到搜索限制")
+            
             # 使用TikHub搜索用户API
             params = {
                 'keyword': username,
@@ -839,10 +870,21 @@ class TiKhubAPIClient:
                 'search_id': ''
             }
             
-            data = self._make_request('/api/v1/tiktok/web/fetch_search_user', params)
+            data = self._make_request(Config.SEARCH_USER_ENDPOINT, params, cookie)
             
             if data:
-                user_list = data.get('user_list', [])
+                # 检查是否返回了认证错误
+                if 'status_code' in data and data['status_code'] == 2483:
+                    logger.warning(f"Cookie认证失败 (status_code: 2483): {data.get('status_msg', '未知错误')}")
+                    logger.warning(f"Cookie可能已过期，尝试不使用cookie重新搜索...")
+                    # 重新尝试，不使用cookie
+                    data = self._make_request(Config.SEARCH_USER_ENDPOINT, params, None)
+                
+                if data and 'user_list' in data:
+                    user_list = data.get('user_list', [])
+                else:
+                    logger.error(f"API响应格式异常: {data}")
+                    user_list = []
                 
                 # 查找完全匹配的用户名
                 for user_info in user_list:
@@ -1154,20 +1196,25 @@ class TiKhubAPIClient:
         
         return full_text
             
-    def fetch_user_videos_by_username(self, username: str, count: int = 5, keyword: str = None) -> List[VideoDetail]:
+    def fetch_user_videos_by_username(self, username: str, count: int = 5, keyword: str = None, cookie: str = None) -> List[VideoDetail]:
         """通过用户名获取用户作品详情
         
         Args:
             username: TikTok用户名
             count: 获取作品数量，默认5个（当没有关键词时使用）
             keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            cookie: 用户cookie（可选，用于提高搜索成功率）
             
         Returns:
             视频详情列表
         """
         try:
+            # 如果没有提供cookie，使用配置中的默认cookie
+            if not cookie:
+                cookie = Config.TIKTOK_COOKIE
+            
             # 先获取secUid
-            sec_uid = self.get_secuid_from_username(username)
+            sec_uid = self.get_secuid_from_username(username, cookie)
             if not sec_uid:
                 logger.error(f"无法获取用户 {username} 的secUid")
                 return []

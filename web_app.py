@@ -30,7 +30,7 @@ simple_api = SimpleScoreAPI()
 # 任务存储（实际项目中应该使用Redis等持久化存储）
 tasks = {}
 
-def background_calculate_score(task_id, username, keyword):
+def background_calculate_score(task_id, username, keyword, cookie=None):
     """后台计算评分"""
     try:
         logger.info(f"任务 {task_id}: 开始计算用户 {username} 的评分，关键词: {keyword or '无'}")
@@ -40,7 +40,7 @@ def background_calculate_score(task_id, username, keyword):
         tasks[task_id]['progress'] = '正在获取用户信息...'
         
         # 获取secUid
-        sec_uid = calculator.api_client.get_secuid_from_username(username)
+        sec_uid = calculator.api_client.get_secuid_from_username(username, cookie)
         if not sec_uid:
             tasks[task_id]['status'] = 'failed'
             tasks[task_id]['error'] = f'无法找到用户 {username}，请检查用户名是否正确'
@@ -87,6 +87,8 @@ def submit_task():
         data = request.get_json()
         username = data.get('username', '').strip()
         keyword = data.get('keyword', '').strip()
+        # cookie参数现在是可选的，如果不提供会使用配置中的默认cookie
+        cookie = data.get('cookie', '').strip() or None
         
         if not username:
             return jsonify({
@@ -108,7 +110,7 @@ def submit_task():
         }
         
         # 启动后台线程处理任务
-        thread = threading.Thread(target=background_calculate_score, args=(task_id, username, keyword))
+        thread = threading.Thread(target=background_calculate_score, args=(task_id, username, keyword, cookie))
         thread.daemon = True
         thread.start()
         
@@ -192,6 +194,8 @@ def calculate_score():
         data = request.get_json()
         username = data.get('username', '').strip()
         keyword = data.get('keyword', '').strip()
+        # cookie参数现在是可选的，如果不提供会使用配置中的默认cookie
+        cookie = data.get('cookie', '').strip() or None
         
         if not username:
             return jsonify({
@@ -202,7 +206,7 @@ def calculate_score():
         logger.info(f"开始计算用户 {username} 的评分，关键词: {keyword or '无'}")
         
         # 获取secUid
-        sec_uid = calculator.api_client.get_secuid_from_username(username)
+        sec_uid = calculator.api_client.get_secuid_from_username(username, cookie)
         if not sec_uid:
             return jsonify({
                 'success': False,
