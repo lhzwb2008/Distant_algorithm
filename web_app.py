@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from creator_score_calculator import CreatorScoreCalculator
 from api_client import TiKhubAPIClient
+from simple_score_api import SimpleScoreAPI
 
 # 设置日志
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +23,9 @@ app = Flask(__name__)
 
 # 初始化评分计算器
 calculator = CreatorScoreCalculator()
+
+# 初始化简化API
+simple_api = SimpleScoreAPI()
 
 # 任务存储（实际项目中应该使用Redis等持久化存储）
 tasks = {}
@@ -227,6 +231,46 @@ def calculate_score():
             'error': f'计算评分时发生错误: {str(e)}'
         }), 500
 
+@app.route('/api/score', methods=['POST'])
+def api_calculate_score():
+    """简化的评分计算API（基于secUid）"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': '请提供JSON格式的请求数据'
+            }), 400
+        
+        sec_uid = data.get('sec_uid')
+        if not sec_uid:
+            return jsonify({
+                'success': False,
+                'error': '缺少必需参数: sec_uid'
+            }), 400
+        
+        keyword = data.get('keyword')
+        
+        logger.info(f"简化API: 开始计算secUid {sec_uid[:20]}... 的评分，关键词: {keyword or '无'}")
+        
+        # 使用简化API计算评分
+        result = simple_api.calculate_score_by_secuid(sec_uid, keyword)
+        
+        if result['success']:
+            logger.info(f"简化API: 评分计算完成，总分: {result['scores']['total_score']}")
+        else:
+            logger.error(f"简化API: 评分计算失败: {result.get('error', '未知错误')}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"简化API调用时发生错误: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'API调用时发生错误: {str(e)}'
+        }), 500
+
 if __name__ == '__main__':
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='TikTok创作者评分系统 Web服务')
@@ -239,6 +283,21 @@ if __name__ == '__main__':
     print(f"📱 访问地址: http://localhost:{args.port}")
     print(f"🌐 外部访问: http://{args.host}:{args.port}")
     print("💡 在浏览器中打开上述地址即可使用")
+    
+    print("\n📊 简化评分API已启动:")
+    print(f"🔗 API端点: http://localhost:{args.port}/api/score")
+    print("\n📋 默认curl调用示例:")
+    print("curl -X POST http://localhost:{}/api/score \\".format(args.port))
+    print('  -H "Content-Type: application/json" \\')
+    print('  -d \'{')
+    print('    "sec_uid": "MS4wLjABAAAAv7iSuuXDJGDvJkmH_vz1qkDZYo1apxgzaxdBSeIuPiM",')
+    print('    "keyword": "crypto"')
+    print('  }\'')
+    print("\n💡 使用说明:")
+    print("  - 必需参数: sec_uid (TikTok用户的secUid)")
+    print("  - 可选参数: keyword (关键词筛选)")
+    print("  - 只需修改sec_uid参数即可测试其他用户")
+    
     print("\n按 Ctrl+C 停止服务\n")
     
     # 配置 Flask 应用的超时设置
