@@ -413,14 +413,14 @@
                                     <span class="value">${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</span>
                                 </div>
                                 
-                                <!-- 单视频评分公式详细计算 -->
+                                <!-- 算法说明 -->
                                 <div class="posting-details" style="margin: 12px 0; padding: 10px; background-color: #e3f2fd; border-radius: 6px; border-left: 4px solid #2196f3;">
-                                    <div style="font-weight: bold; color: #1976d2; margin-bottom: 8px;">📋 单视频评分公式计算详情:</div>
+                                    <div style="font-weight: bold; color: #1976d2; margin-bottom: 8px;">📋 算法说明:</div>
                                     <div style="font-size: 14px; line-height: 1.6;">
-                                        <div><strong>内容互动分数:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.内容互动分数}</div>
-                                        <div><strong>内容质量分数:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.内容质量分数}</div>
-                                        <div><strong>单视频基础分:</strong> ${breakdown.最终评分详细计算.单视频评分公式详情.单视频基础分}</div>
-                                        <div style="margin-top: 8px; color: #666; font-style: italic;">公式: 内容互动数据 × 65% + 内容质量 × 35%</div>
+                                        <div><strong>步骤1:</strong> 每个视频分别计算 → 互动分×65% + AI质量分×35% = 视频分</div>
+                                        <div><strong>步骤2:</strong> 根据各视频分计算 → 40%峰值 + 40%近期 + 20%整体 = 基础分</div>
+                                        <div><strong>步骤3:</strong> 应用账户质量加权 → 基础分 × 账户质量系数 = 最终评分</div>
+                                        <div style="margin-top: 8px; color: #666; font-style: italic;">${breakdown.最终评分详细计算.说明}</div>
                                     </div>
                                 </div>
                                 
@@ -451,33 +451,18 @@
                             </div>
                             
                             <div class="breakdown-section">
-                                <h5>👤 账户质量评分 (${breakdown.账户质量评分.账户质量总分}/100)</h5>
-                                <div class="breakdown-item">
-                                    <span class="label">粉丝数量得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.粉丝数量得分}/100 (权重40%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">总点赞得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.总点赞得分}/100 (权重40%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">发布频率得分:</span>
-                                    <span class="value">${breakdown.账户质量评分.发布频率得分}/100 (权重20%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">质量加权系数:</span>
-                                    <span class="value">${breakdown.账户质量评分.质量加权系数}</span>
-                                </div>
-                                
-                                <!-- 账户质量评分详细计算过程 -->
-                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #e8f4fd; border-radius: 6px; border-left: 4px solid #007bff;">
-                                    <div style="font-weight: bold; color: #007bff; margin-bottom: 8px;">📊 账户质量评分计算详情:</div>
-                                    <div style="font-size: 14px; line-height: 1.6;">
-                                        <div><strong>粉丝数量:</strong> ${breakdown.账户质量评分.详细计算过程.粉丝数量计算}</div>
-                                        <div><strong>总点赞数:</strong> ${breakdown.账户质量评分.详细计算过程.总点赞数计算}</div>
-                                        <div><strong>发布频率:</strong> ${breakdown.账户质量评分.详细计算过程.发布频率计算}</div>
-                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6;"><strong>账户质量总分:</strong> ${breakdown.账户质量评分.详细计算过程.账户质量总分}</div>
-                                        <div><strong>质量加权系数:</strong> ${breakdown.账户质量评分.详细计算过程.质量加权系数}</div>
+                                <h5>👤 账户质量加权系数: ${breakdown.账户质量评分.质量加权系数}</h5>
+                                <div style="padding: 12px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #6c757d;">
+                                    <div style="font-size: 14px; line-height: 1.6; color: #495057;">
+                                        <div style="margin-bottom: 8px;"><strong>账户质量总分:</strong> ${breakdown.账户质量评分.账户质量总分}/100</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; font-size: 13px;">
+                                            <div>粉丝数量: ${breakdown.账户质量评分.粉丝数量得分}</div>
+                                            <div>总点赞数: ${breakdown.账户质量评分.总点赞得分}</div>
+                                            <div>发布频率: ${breakdown.账户质量评分.发布频率得分}</div>
+                                        </div>
+                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d;">
+                                            <strong>说明:</strong> 账户质量评分用于计算最终评分的加权系数，分数越高加权越大
+                                        </div>
                                     </div>
                                 </div>
                             </div>

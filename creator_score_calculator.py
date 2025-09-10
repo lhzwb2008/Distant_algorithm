@@ -525,26 +525,10 @@ class CreatorScoreCalculator:
         Returns:
             详细的评分分解信息
         """
-        # 计算权重后的分数
+        # 计算账户质量权重后的分数（用于显示详细计算过程）
         follower_weighted = creator_score.account_quality.follower_score * 0.4
         likes_weighted = creator_score.account_quality.likes_score * 0.4
         posting_weighted = creator_score.account_quality.posting_score * 0.2
-        
-        # 计算内容互动权重后的分数
-        view_weighted = creator_score.content_interaction.view_score * 0.10
-        like_weighted = creator_score.content_interaction.like_score * 0.15
-        comment_weighted = creator_score.content_interaction.comment_score * 0.30
-        share_weighted = creator_score.content_interaction.share_score * 0.30
-        save_weighted = creator_score.content_interaction.save_score * 0.15
-        
-        # 获取AI质量评分的平均分
-        avg_ai_score = 0.0  # 默认值：无AI评分时为0分
-        if ai_quality_scores:
-            avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
-        
-        # 计算最终的内容互动和内容质量分数
-        content_interaction_final = creator_score.content_interaction.total_score * 0.65
-        content_quality_final = avg_ai_score * 0.35
         
         # 计算每个视频的详细评分
         individual_videos = []
@@ -637,16 +621,7 @@ class CreatorScoreCalculator:
                 "基础分数": f"{(getattr(creator_score, 'peak_performance', 0) * 0.4 + getattr(creator_score, 'recent_performance', 0) * 0.4 + getattr(creator_score, 'overall_performance', 0) * 0.2):.2f}",
                 "账户质量加权": f"基础分数 × {creator_score.account_quality.multiplier:.3f} = {creator_score.final_score:.2f}",
                 "最终评分": f"{creator_score.final_score:.2f}分",
-                "单视频评分公式详情": {
-                    "内容互动分数": f"{creator_score.content_interaction.total_score:.2f} × 65% = {content_interaction_final:.2f}",
-                    "内容质量分数": f"{avg_ai_score:.2f} × 35% = {content_quality_final:.2f}",
-                    "单视频基础分": f"{content_interaction_final:.2f} + {content_quality_final:.2f} = {content_interaction_final + content_quality_final:.2f}"
-                }
-            },
-            "权重配置": {
-                "内容互动权重": "65%",
-                "内容质量权重": "35%",
-                "内容质量分数来源": "AI智能评分"
+                "说明": "每个视频分别计算：互动分×65% + AI质量分×35% = 视频分，详情请查看下方各视频评分"
             }
         }
         
