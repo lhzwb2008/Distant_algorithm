@@ -483,108 +483,81 @@
                             </div>
                             
                             <div class="breakdown-section">
-                                <h5>📱 内容互动评分 (${breakdown.内容互动评分.内容互动总分}/100)</h5>
-                                <div class="breakdown-item">
-                                    <span class="label">播放量得分:</span>
-                                    <span class="value">${breakdown.内容互动评分.播放量得分}/100 (权重10%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">点赞得分:</span>
-                                    <span class="value">${breakdown.内容互动评分.点赞得分}/100 (权重15%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">评论得分:</span>
-                                    <span class="value">${breakdown.内容互动评分.评论得分}/100 (权重30%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">分享得分:</span>
-                                    <span class="value">${breakdown.内容互动评分.分享得分}/100 (权重30%)</span>
-                                </div>
-                                <div class="breakdown-item">
-                                    <span class="label">保存得分:</span>
-                                    <span class="value">${breakdown.内容互动评分.保存得分 || 'N/A'}/100 (权重15%)</span>
-                                </div>
-                                
-                                <!-- 内容互动评分详细计算过程 -->
-                                <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #f0f8e8; border-radius: 6px; border-left: 4px solid #28a745;">
-                                    <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">📊 内容互动评分计算详情（基于最近100条视频）:</div>
-                                    <div style="font-size: 14px; line-height: 1.6;">
-                                        <div><strong>播放量表现:</strong> ${breakdown.内容互动评分.详细计算过程.播放量表现}</div>
-                                        <div><strong>点赞率表现:</strong> ${breakdown.内容互动评分.详细计算过程.点赞率表现}</div>
-                                        <div><strong>评论率表现:</strong> ${breakdown.内容互动评分.详细计算过程.评论率表现}</div>
-                                        <div><strong>分享率表现:</strong> ${breakdown.内容互动评分.详细计算过程.分享率表现}</div>
-                                        <div><strong>保存率表现:</strong> ${breakdown.内容互动评分.详细计算过程.保存率表现 || 'N/A'}</div>
-                                        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6;"><strong>内容互动总分:</strong> ${breakdown.内容互动评分.详细计算过程.内容互动总分}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="breakdown-section">
-                                <h5>🤖 AI视频质量评分</h5>
-                                ${breakdown.AI视频质量评分.评分视频数 > 0 ? `
-                                    <div class="breakdown-item">
-                                        <span class="label">评分视频数:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.评分视频数}</span>
-                                    </div>
-                                    <div class="breakdown-item">
-                                        <span class="label">平均AI质量分:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.平均AI质量分}</span>
-                                    </div>
-                                    <div class="breakdown-item">
-                                        <span class="label">最高AI质量分:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.最高AI质量分}</span>
-                                    </div>
-                                    <div class="breakdown-item">
-                                        <span class="label">最低AI质量分:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.最低AI质量分}</span>
-                                    </div>
-                                    <div class="breakdown-item">
-                                        <span class="label">说明:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.说明}</span>
-                                    </div>
-                                    
-                                    <!-- AI评分详情 -->
-                                    <div class="posting-details" style="margin-top: 12px; padding: 10px; background-color: #e8f5e8; border-radius: 6px; border-left: 4px solid #28a745;">
-                                        <div style="font-weight: bold; color: #28a745; margin-bottom: 8px;">🤖 各视频AI质量评分详情:</div>
-                                        <div style="font-size: 14px; line-height: 1.6;">
-                                            ${Object.entries(breakdown.AI视频质量评分.各视频详情 || {}).map(([videoId, score]) => `
-                                                <div style="margin-bottom: 12px; padding: 8px; background-color: #f8f9fa; border-radius: 4px;">
-                                                    <div style="font-weight: bold; color: #495057;">视频 ${videoId}:</div>
-                                                    <div style="margin-left: 10px;">
-                                                        <div><strong>总分:</strong> ${score.总分}</div>
-                                                        ${score.总分计算 ? `<div style="color: #6c757d; font-size: 12px;"><strong>计算过程:</strong> ${score.总分计算}</div>` : ''}
-                                                        <div><strong>关键词:</strong> ${score.关键词}</div>
-                                                        <div><strong>原创性:</strong> ${score.原创性}</div>
-                                                        <div><strong>清晰度:</strong> ${score.清晰度}</div>
-                                                        <div><strong>垃圾识别:</strong> ${score.垃圾识别}</div>
-                                                        <div><strong>推广识别:</strong> ${score.推广识别}</div>
-                                                        <div style="margin-top: 8px;">
-                                                            <strong>详细评分理由:</strong>
-                                                            <div style="margin-top: 4px; padding: 6px; background-color: #ffffff; border-radius: 3px; font-size: 12px; line-height: 1.4;">
-                                                                ${typeof score.评分理由 === 'object' ? 
-                                                                    Object.entries(score.评分理由).map(([key, value]) => 
-                                                                        `<div style="margin-bottom: 4px;"><strong>${key.replace('_reasoning', '').replace('_', ' ')}:</strong> ${value}</div>`
-                                                                    ).join('') : 
-                                                                    score.评分理由
-                                                                }
-                                                            </div>
-                                                        </div>
+                                <h5>📹 各视频详细评分</h5>
+                                ${breakdown.各视频详细评分.length > 0 ? 
+                                    breakdown.各视频详细评分.map((video, index) => `
+                                        <div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                                <h6 style="margin: 0; color: #007bff; font-size: 16px;">🎬 视频 ${index + 1}</h6>
+                                                <div style="font-size: 14px; color: #6c757d;">
+                                                    <strong>发布时间:</strong> ${video.create_time} | 
+                                                    <a href="${video.video_url}" target="_blank" style="color: #007bff; text-decoration: none;">📱 查看视频</a>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- 互动数据 -->
+                                            <div style="margin-bottom: 12px;">
+                                                <strong style="color: #28a745;">📊 互动数据:</strong>
+                                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 6px;">
+                                                    <div style="background: #e8f5e8; padding: 6px; border-radius: 4px; text-align: center;">
+                                                        <div style="font-size: 12px; color: #666;">播放量</div>
+                                                        <div style="font-weight: bold;">${video.互动数据.播放量}</div>
+                                                    </div>
+                                                    <div style="background: #e8f5e8; padding: 6px; border-radius: 4px; text-align: center;">
+                                                        <div style="font-size: 12px; color: #666;">点赞数</div>
+                                                        <div style="font-weight: bold;">${video.互动数据.点赞数}</div>
+                                                    </div>
+                                                    <div style="background: #e8f5e8; padding: 6px; border-radius: 4px; text-align: center;">
+                                                        <div style="font-size: 12px; color: #666;">评论数</div>
+                                                        <div style="font-weight: bold;">${video.互动数据.评论数}</div>
+                                                    </div>
+                                                    <div style="background: #e8f5e8; padding: 6px; border-radius: 4px; text-align: center;">
+                                                        <div style="font-size: 12px; color: #666;">分享数</div>
+                                                        <div style="font-weight: bold;">${video.互动数据.分享数}</div>
+                                                    </div>
+                                                    <div style="background: #e8f5e8; padding: 6px; border-radius: 4px; text-align: center;">
+                                                        <div style="font-size: 12px; color: #666;">保存数</div>
+                                                        <div style="font-weight: bold;">${video.互动数据.保存数}</div>
                                                     </div>
                                                 </div>
-                                            `).join('')}
+                                            </div>
+                                            
+                                            <!-- 互动评分 -->
+                                            <div style="margin-bottom: 12px;">
+                                                <strong style="color: #ffc107;">⚡ 互动评分 (${video.互动评分.互动总分}/100):</strong>
+                                                <div style="font-size: 13px; margin-top: 6px; line-height: 1.4;">
+                                                    播放量: ${video.互动评分.播放量得分} | 点赞: ${video.互动评分.点赞得分} | 评论: ${video.互动评分.评论得分} | 分享: ${video.互动评分.分享得分} | 保存: ${video.互动评分.保存得分}
+                                                </div>
+                                                <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                                                    <strong>计算:</strong> ${video.互动评分.计算过程}
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- AI质量评分 -->
+                                            <div style="margin-bottom: 12px;">
+                                                <strong style="color: #dc3545;">🤖 AI质量评分 (${video.AI质量评分.AI总分}/100):</strong>
+                                                <div style="font-size: 13px; margin-top: 6px; line-height: 1.4;">
+                                                    ${video.AI质量评分.详细计算}
+                                                </div>
+                                                ${video.AI质量评分.评分理由 !== '无AI评分' ? `
+                                                    <div style="font-size: 12px; color: #6c757d; margin-top: 4px; padding: 6px; background: #fff3cd; border-radius: 4px;">
+                                                        <strong>AI评分理由:</strong> ${typeof video.AI质量评分.评分理由 === 'string' ? video.AI质量评分.评分理由 : JSON.stringify(video.AI质量评分.评分理由)}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                            
+                                            <!-- 视频总分 -->
+                                            <div style="padding: 10px; background: #e3f2fd; border-radius: 6px; border: 1px solid #bbdefb;">
+                                                <strong style="color: #1976d2;">🎯 视频总分: ${video.视频总分.总分}/100</strong>
+                                                <div style="font-size: 12px; color: #424242; margin-top: 4px;">
+                                                    <strong>公式:</strong> ${video.视频总分.计算公式}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                ` : `
-                                    <div class="breakdown-item">
-                                        <span class="label">评分视频数:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.评分视频数}</span>
-                                    </div>
-                                    <div class="breakdown-item">
-                                        <span class="label">说明:</span>
-                                        <span class="value">${breakdown.AI视频质量评分.说明}</span>
-                                    </div>
-                                `}
+                                    `).join('') 
+                                : '<div style="text-align: center; color: #6c757d; padding: 20px;">暂无视频数据</div>'}
                             </div>
+                            
                             
 
                             

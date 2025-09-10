@@ -19,11 +19,15 @@ class ContentInteractionCalculator:
         
         评分公式：min((views / (followers * 基准系数)) * 100, 100)
         基准系数根据粉丝数量分层：
-        - 0-1千：基准 = 1.5倍粉丝量
-        - 1千-1万粉丝：基准 = 1.0倍粉丝量
-        - 1万-10万粉丝：基准 = 0.8倍粉丝量
-        - 10万-100万粉丝：基准 = 0.6倍粉丝量
-        - 100万+粉丝：基准 = 0.4倍粉丝量
+        - 0-100：基准 = 1.5倍粉丝量
+        - 100-1k：基准 = 1.0倍粉丝量
+        - 1k-5k：基准 = 0.24倍粉丝量
+        - 5k-10k：基准 = 0.10倍粉丝量
+        - 10k-50k：基准 = 0.04倍粉丝量
+        - 50k-100k：基准 = 0.05倍粉丝量
+        - 100k-500k：基准 = 0.06倍粉丝量
+        - 500k-1M：基准 = 0.05倍粉丝量
+        - 1M+：基准 = 0.04倍粉丝量
         
         Args:
             views: 视频播放量
@@ -38,17 +42,25 @@ class ContentInteractionCalculator:
             score = min((views / 2000) * 100, 100)
             return max(0.0, score)
         
-        # 根据粉丝数量确定基准系数
-        if follower_count <= 1000:
+        # 根据粉丝数量确定基准系数（最新公式）
+        if follower_count <= 100:
             base_coefficient = 1.5
-        elif follower_count <= 10000:
+        elif follower_count <= 1000:
             base_coefficient = 1.0
+        elif follower_count <= 5000:
+            base_coefficient = 0.24
+        elif follower_count <= 10000:
+            base_coefficient = 0.10
+        elif follower_count <= 50000:
+            base_coefficient = 0.04
         elif follower_count <= 100000:
-            base_coefficient = 0.8
+            base_coefficient = 0.05
+        elif follower_count <= 500000:
+            base_coefficient = 0.06
         elif follower_count <= 1000000:
-            base_coefficient = 0.6
+            base_coefficient = 0.05
         else:
-            base_coefficient = 0.4
+            base_coefficient = 0.04
             
         expected_views = follower_count * base_coefficient
         view_ratio = views / expected_views

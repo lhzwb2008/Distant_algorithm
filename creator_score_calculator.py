@@ -513,12 +513,14 @@ class CreatorScoreCalculator:
         
         return max(0.0, min(300.0, final_score))  # 最高300分（100 * 3.0倍数）
     
-    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None) -> Dict[str, Any]:
-        """获取详细的评分分解信息，包含AI质量评分
+    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None, video_details: List[VideoDetail] = None, follower_count: int = 0) -> Dict[str, Any]:
+        """获取详细的评分分解信息，包含每个视频的详细计算过程
         
         Args:
             creator_score: 创作者评分对象
             ai_quality_scores: AI质量评分字典
+            video_details: 视频详情列表
+            follower_count: 粉丝数量
             
         Returns:
             详细的评分分解信息
@@ -544,6 +546,70 @@ class CreatorScoreCalculator:
         content_interaction_final = creator_score.content_interaction.total_score * 0.65
         content_quality_final = avg_ai_score * 0.35
         
+        # 计算每个视频的详细评分
+        individual_videos = []
+        if video_details and follower_count > 0:
+            for video in video_details:
+                # 计算单个视频的互动各项得分
+                view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
+                like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count)
+                comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count)
+                share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count)
+                save_score = self.content_calculator.calculate_save_score(
+                    getattr(video, 'collect_count', 0), video.view_count
+                )
+                
+                # 计算互动总分
+                interaction_total = (
+                    view_score * 0.10 + like_score * 0.15 + comment_score * 0.30 +
+                    share_score * 0.30 + save_score * 0.15
+                )
+                
+                # 获取AI质量分
+                ai_score = 0.0
+                ai_details = "无AI评分"
+                if ai_quality_scores and video.video_id in ai_quality_scores:
+                    quality_score = ai_quality_scores[video.video_id]
+                    ai_score = quality_score.total_score
+                    ai_details = f"关键词:{quality_score.keyword_score:.1f} + 原创性:{quality_score.originality_score:.1f} + 清晰度:{quality_score.clarity_score:.1f} + 垃圾识别:{quality_score.spam_score:.1f} + 推广识别:{quality_score.promotion_score:.1f} = {ai_score:.1f}"
+                
+                # 计算视频总分
+                video_total_score = interaction_total * 0.65 + ai_score * 0.35
+                
+                # 构建视频链接
+                video_url = f"https://www.tiktok.com/@user/video/{video.video_id}"
+                
+                individual_videos.append({
+                    "video_id": video.video_id,
+                    "video_url": video_url,
+                    "create_time": video.create_time.strftime("%Y-%m-%d %H:%M") if hasattr(video.create_time, 'strftime') else str(video.create_time),
+                    "互动数据": {
+                        "播放量": f"{video.view_count:,}",
+                        "点赞数": f"{video.like_count:,}",
+                        "评论数": f"{video.comment_count:,}",
+                        "分享数": f"{video.share_count:,}",
+                        "保存数": f"{getattr(video, 'collect_count', 0):,}"
+                    },
+                    "互动评分": {
+                        "播放量得分": f"{view_score:.2f}",
+                        "点赞得分": f"{like_score:.2f}",
+                        "评论得分": f"{comment_score:.2f}",
+                        "分享得分": f"{share_score:.2f}",
+                        "保存得分": f"{save_score:.2f}",
+                        "互动总分": f"{interaction_total:.2f}",
+                        "计算过程": f"{view_score:.2f}×10% + {like_score:.2f}×15% + {comment_score:.2f}×30% + {share_score:.2f}×30% + {save_score:.2f}×15% = {interaction_total:.2f}"
+                    },
+                    "AI质量评分": {
+                        "AI总分": f"{ai_score:.2f}",
+                        "详细计算": ai_details,
+                        "评分理由": ai_quality_scores[video.video_id].reasoning if ai_quality_scores and video.video_id in ai_quality_scores else "无AI评分"
+                    },
+                    "视频总分": {
+                        "总分": f"{video_total_score:.2f}",
+                        "计算公式": f"互动分×65% + AI质量分×35% = {interaction_total:.2f}×0.65 + {ai_score:.2f}×0.35 = {video_total_score:.2f}"
+                    }
+                })
+
         breakdown = {
             "视频数量": creator_score.video_count,
             "账户质量评分": {
@@ -561,23 +627,7 @@ class CreatorScoreCalculator:
                     "质量加权系数": f"根据账户质量总分计算得出 {creator_score.account_quality.multiplier:.3f}"
                 }
             },
-            "内容互动评分": {
-                "播放量得分": f"{creator_score.content_interaction.view_score:.2f}",
-                "点赞得分": f"{creator_score.content_interaction.like_score:.2f}",
-                "评论得分": f"{creator_score.content_interaction.comment_score:.2f}",
-                "分享得分": f"{creator_score.content_interaction.share_score:.2f}",
-                "保存得分": f"{creator_score.content_interaction.save_score:.2f}",
-                "内容互动总分": f"{creator_score.content_interaction.total_score:.2f}",
-                "详细计算过程": {
-                    "播放量表现": f"{creator_score.content_interaction.view_score:.2f} × 10% = {view_weighted:.2f}",
-                    "点赞率表现": f"{creator_score.content_interaction.like_score:.2f} × 15% = {like_weighted:.2f}",
-                    "评论率表现": f"{creator_score.content_interaction.comment_score:.2f} × 30% = {comment_weighted:.2f}",
-                    "分享率表现": f"{creator_score.content_interaction.share_score:.2f} × 30% = {share_weighted:.2f}",
-                    "保存率表现": f"{creator_score.content_interaction.save_score:.2f} × 15% = {save_weighted:.2f}",
-                    "内容互动总分": f"{view_weighted:.2f} + {like_weighted:.2f} + {comment_weighted:.2f} + {share_weighted:.2f} + {save_weighted:.2f} = {creator_score.content_interaction.total_score:.2f}"
-                }
-            },
-            "AI视频质量评分": {},
+            "各视频详细评分": individual_videos,
             "最终评分详细计算": {
                 "算法说明": "40%峰值表现 + 40%近期状态 + 20%整体水平",
                 "视频总数": f"{creator_score.video_count} 个",
@@ -599,50 +649,6 @@ class CreatorScoreCalculator:
                 "内容质量分数来源": "AI智能评分"
             }
         }
-        
-        # 添加AI质量评分信息
-        if ai_quality_scores:
-            avg_ai_score = sum(score.total_score for score in ai_quality_scores.values()) / len(ai_quality_scores)
-            breakdown["AI视频质量评分"] = {
-                "评分视频数": len(ai_quality_scores),
-                "平均AI质量分": f"{avg_ai_score:.1f}/100",
-                "最高AI质量分": f"{max(score.total_score for score in ai_quality_scores.values()):.1f}/100",
-                "最低AI质量分": f"{min(score.total_score for score in ai_quality_scores.values()):.1f}/100",
-                "说明": "AI智能评分系统",
-                "各视频详情": {}
-            }
-            
-            # 添加每个视频的详细AI评分
-            for video_id, ai_score in ai_quality_scores.items():
-                # 解析评分理由JSON
-                try:
-                    import json
-                    # 检查 reasoning 是否已经是字典类型
-                    if isinstance(ai_score.reasoning, dict):
-                        reasoning_display = ai_score.reasoning
-                    elif isinstance(ai_score.reasoning, str):
-                        reasoning_json = json.loads(ai_score.reasoning)
-                        reasoning_display = reasoning_json
-                    else:
-                        reasoning_display = ai_score.reasoning
-                except (json.JSONDecodeError, TypeError):
-                    reasoning_display = ai_score.reasoning
-                
-                breakdown["AI视频质量评分"]["各视频详情"][video_id] = {
-                    "总分": f"{ai_score.total_score:.1f}/100",
-                    "总分计算": f"关键词{ai_score.keyword_score:.1f} + 原创性{ai_score.originality_score:.1f} + 清晰度{ai_score.clarity_score:.1f} + 垃圾识别{ai_score.spam_score:.1f} + 推广识别{ai_score.promotion_score:.1f} = {ai_score.total_score:.1f}",
-                    "关键词": f"{ai_score.keyword_score:.1f}/60",
-                    "原创性": f"{ai_score.originality_score:.1f}/20",
-                    "清晰度": f"{ai_score.clarity_score:.1f}/10",
-                    "垃圾识别": f"{ai_score.spam_score:.1f}/5",
-                    "推广识别": f"{ai_score.promotion_score:.1f}/5",
-                    "评分理由": reasoning_display
-                }
-        else:
-            breakdown["AI视频质量评分"] = {
-                "评分视频数": 0,
-                "说明": "没有匹配关键词的视频或字幕提取失败，无AI评分数据"
-            }
         
         return breakdown
     
@@ -842,7 +848,7 @@ class CreatorScoreCalculator:
                 video_scores=video_scores if content_interaction_videos else []
             )
             
-            return creator_score, ai_quality_scores
+            return creator_score, ai_quality_scores, content_interaction_videos, user_profile
             
         except Exception as e:
             logger.error(f"通过用户ID {user_id} 计算评分时发生错误: {e}")

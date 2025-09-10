@@ -49,12 +49,12 @@ def background_calculate_score(task_id, username, keyword, cookie=None):
         tasks[task_id]['progress'] = '正在分析视频内容...'
         
         # 计算评分
-        creator_score, ai_quality_scores = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
+        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
         
         tasks[task_id]['progress'] = '正在生成详细报告...'
         
-        # 获取详细的评分分解（包含AI质量评分）
-        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores)
+        # 获取详细的评分分解（包含每个视频的详细计算）
+        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count)
         
         # 任务完成
         tasks[task_id]['status'] = 'completed'
@@ -214,10 +214,10 @@ def calculate_score():
             }), 404
         
         # 计算评分
-        creator_score, ai_quality_scores = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
+        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
         
-        # 获取详细的评分分解（包含AI质量评分）
-        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores)
+        # 获取详细的评分分解（包含每个视频的详细计算）
+        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count)
         
         return jsonify({
             'success': True,
