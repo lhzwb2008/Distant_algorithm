@@ -513,7 +513,7 @@ class CreatorScoreCalculator:
         
         return max(0.0, min(300.0, final_score))  # 最高300分（100 * 3.0倍数）
     
-    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None, video_details: List[VideoDetail] = None, follower_count: int = 0) -> Dict[str, Any]:
+    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None, video_details: List[VideoDetail] = None, follower_count: int = 0, user_profile: UserProfile = None) -> Dict[str, Any]:
         """获取详细的评分分解信息，包含每个视频的详细计算过程
         
         Args:
@@ -521,6 +521,7 @@ class CreatorScoreCalculator:
             ai_quality_scores: AI质量评分字典
             video_details: 视频详情列表
             follower_count: 粉丝数量
+            user_profile: 用户资料信息（包含原始粉丝数、点赞数等）
             
         Returns:
             详细的评分分解信息
@@ -597,6 +598,11 @@ class CreatorScoreCalculator:
         breakdown = {
             "视频数量": creator_score.video_count,
             "账户质量评分": {
+                "原始数据": {
+                    "粉丝数量": f"{user_profile.follower_count:,}" if user_profile else "N/A",
+                    "总点赞数": f"{user_profile.total_likes:,}" if user_profile else "N/A",
+                    "发布频率": creator_score.account_quality.posting_details.get("频率", "N/A") if creator_score.account_quality.posting_details else "N/A"
+                },
                 "粉丝数量得分": f"{creator_score.account_quality.follower_score:.2f}",
                 "总点赞得分": f"{creator_score.account_quality.likes_score:.2f}",
                 "发布频率得分": f"{creator_score.account_quality.posting_score:.2f}",
