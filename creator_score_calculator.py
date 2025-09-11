@@ -167,13 +167,14 @@ class CreatorScoreCalculator:
         creator_score = self.calculate_creator_score_by_user_id(sec_uid, keyword=keyword)
         return creator_score.final_score
     
-    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 100, keyword: str = None) -> CreatorScore:
+    def calculate_creator_score_by_user_id(self, user_id: str, video_count: int = 100, keyword: str = None, project_name: str = None) -> CreatorScore:
         """通过用户ID计算创作者评分（使用优化的API流程）
         
         Args:
             user_id: TikTok用户ID
             video_count: 获取的视频数量，默认100个用于内容互动分计算
             keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            project_name: 项目方名称筛选，如果提供则筛选包含该项目方名称的视频
             
         Returns:
             创作者评分对象
@@ -198,7 +199,7 @@ class CreatorScoreCalculator:
                 print(f"   📋 无关键词筛选，获取前{video_count}条视频")
             
             content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
-                sec_uid, keyword=keyword, max_videos=video_count
+                sec_uid, keyword=keyword, project_name=project_name, max_videos=video_count
             )
             
             # 数据获取结果统计
@@ -410,8 +411,9 @@ class CreatorScoreCalculator:
         """计算单个视频的评分（集成AI质量评分）
         
         单视频评分公式：
-        Video Score = 内容互动数据 × 65% + 内容质量 × 35%
-        其中内容质量：有AI评分时使用AI评分，否则为0分
+        - 如果AI评分为0分（视频内容与筛选条件不相关），直接返回0分
+        - 否则：Video Score = 内容互动数据 × 65% + 内容质量 × 35%
+        其中内容质量：有AI评分时使用AI评分，否则使用默认值
         
         Args:
             video: 视频详情
@@ -442,6 +444,12 @@ class CreatorScoreCalculator:
         # 获取内容质量分：优先使用AI评分，否则使用默认值
         if video.video_id in ai_quality_scores:
             content_quality_score = ai_quality_scores[video.video_id].total_score
+            
+            # 重要逻辑：如果AI评分为0分（视频内容与筛选条件不相关），直接返回0分
+            # 不再计算互动分数，因为这个视频完全不符合筛选要求
+            if content_quality_score == 0.0:
+                return 0.0
+                
         else:
             content_quality_score = self.content_quality_score
         
@@ -635,13 +643,14 @@ class CreatorScoreCalculator:
         
         return breakdown
     
-    def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None) -> tuple[CreatorScore, Dict[str, QualityScore]]:
+    def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None, project_name: str = None) -> tuple[CreatorScore, Dict[str, QualityScore]]:
         """通过用户ID计算创作者评分并返回AI质量评分（用于Web界面）
         
         Args:
             user_id: TikTok用户ID
             video_count: 获取的视频数量，默认100个用于内容互动分计算
             keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            project_name: 项目方名称筛选，如果提供则筛选包含该项目方名称的视频
             
         Returns:
             (创作者评分对象, AI质量评分字典)
@@ -666,7 +675,7 @@ class CreatorScoreCalculator:
                 print(f"   📋 无关键词筛选，获取前{video_count}条视频")
             
             content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
-                sec_uid, keyword=keyword, max_videos=video_count
+                sec_uid, keyword=keyword, project_name=project_name, max_videos=video_count
             )
             
             # 数据获取结果统计

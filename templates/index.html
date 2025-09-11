@@ -242,17 +242,23 @@
         </div>
         
         <form id="scoreForm">
+            <div class="form-group">
+                <label for="username">TikTok用户名 *</label>
+                <input type="text" id="username" name="username" placeholder="etherstories" required>
+                <div class="hint">请输入TikTok用户名（不包含@符号）</div>
+            </div>
+            
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin-bottom: 25px;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label for="username">TikTok用户名 *</label>
-                    <input type="text" id="username" name="username" placeholder="etherstories" required>
-                    <div class="hint">请输入TikTok用户名（不包含@符号）</div>
-                </div>
-                
                 <div class="form-group" style="margin-bottom: 0;">
                     <label for="keyword">关键词筛选</label>
                     <input type="text" id="keyword" name="keyword" placeholder="Amphibian963">
                     <div class="hint">可选：筛选包含特定关键词的视频进行评分</div>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="project_name">项目方名称</label>
+                    <input type="text" id="project_name" name="project_name" placeholder="Pudgy Penguins">
+                    <div class="hint">可选：筛选包含特定项目方名称的视频进行评分</div>
                 </div>
             </div>
             
@@ -315,6 +321,7 @@
             
             const username = document.getElementById('username').value.trim();
             const keyword = document.getElementById('keyword').value.trim();
+            const project_name = document.getElementById('project_name').value.trim();
             const submitBtn = document.getElementById('submitBtn');
             const loading = document.getElementById('loading');
             const result = document.getElementById('result');
@@ -339,7 +346,8 @@
                     },
                     body: JSON.stringify({
                         username: username,
-                        keyword: keyword
+                        keyword: keyword,
+                        project_name: project_name
                     })
                 });
                 
@@ -599,7 +607,8 @@
                         <div class="score-details">
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
                                 <div><strong>👤 用户名:</strong> ${data.username}</div>
-                                <div><strong>🎯 关键词:</strong> ${data.keyword || '全部视频'}</div>
+                                <div><strong>🎯 关键词:</strong> ${data.keyword || '无'}</div>
+                                <div><strong>🏢 项目方:</strong> ${data.project_name || '无'}</div>
                                 <div><strong>📊 分析视频:</strong> ${breakdown.视频数量}个</div>
                                 <div><strong>🤖 AI分析:</strong> v3.0增强算法</div>
                             </div>

@@ -301,14 +301,15 @@ class GoogleGeminiClient:
         logger.info(f"✅ 小文件准备完成，将使用内联方式，耗时: {upload_time:.2f}秒")
         return f"inline:{video_path}"
     
-    def analyze_video_content(self, file_uri: str, video_description: str = "", video_id: str = "") -> Optional[VideoAnalysisResult]:
+    def analyze_video_content(self, file_uri: str, video_id: str = "", keyword: str = None, project_name: str = None) -> Optional[VideoAnalysisResult]:
         """
         使用Gemini分析视频内容并评分
         
         Args:
             file_uri: Gemini文件URI 或 内联文件路径（以"inline:"开头）
-            video_description: 视频描述（可选）
             video_id: 视频ID（用于标识和日志）
+            keyword: 关键词，用于匹配检查
+            project_name: 项目方名称，用于匹配检查
             
         Returns:
             视频分析结果
@@ -319,21 +320,22 @@ class GoogleGeminiClient:
             
             # 判断是大文件（Files API）还是小文件（内联）
             if file_uri.startswith("inline:"):
-                return self._analyze_video_inline(file_uri[7:], video_description, start_time)
+                return self._analyze_video_inline(file_uri[7:], video_id, keyword, project_name)
             else:
-                return self._analyze_video_with_file_api(file_uri, video_description, start_time, video_id)
+                return self._analyze_video_with_file_api(file_uri, video_id, keyword, project_name)
                 
         except Exception as e:
             analysis_time = time.time() - start_time
             logger.error(f"❌ Gemini视频分析失败 (耗时: {analysis_time:.2f}秒): {e}")
             return None
     
-    def _analyze_video_with_file_api(self, file_uri: str, video_description: str, start_time: float, video_id: str = "") -> Optional[VideoAnalysisResult]:
+    def _analyze_video_with_file_api(self, file_uri: str, video_id: str = "", keyword: str = None, project_name: str = None) -> Optional[VideoAnalysisResult]:
         """使用Files API方式分析视频 - 优先使用SDK"""
+        start_time = time.time()
         logger.info("📤 使用Files API方式分析大文件...")
         
-        # 构建评分提示词
-        prompt = self._build_analysis_prompt(video_description)
+        # 构建评分提示词（不使用video_description，完全基于视频内容）
+        prompt = self._build_analysis_prompt(keyword=keyword, project_name=project_name)
         
         # 优先尝试SDK方式
         if self.genai_client:
@@ -470,15 +472,28 @@ class GoogleGeminiClient:
             logger.error(f"❌ Gemini内联视频分析失败 (耗时: {analysis_time:.2f}秒): 未找到有效响应")
             return None
     
-    def _build_analysis_prompt(self, video_description: str = "") -> str:
+    def _build_analysis_prompt(self, keyword: str = None, project_name: str = None) -> str:
         """构建视频分析提示词"""
+        
+        # 构建筛选条件说明
+        filter_info = "无特定筛选条件"
+        if keyword or project_name:
+            filter_terms = []
+            if keyword:
+                filter_terms.append(f"关键词: {keyword}")
+            if project_name:
+                filter_terms.append(f"项目方: {project_name}")
+            filter_info = " 或 ".join(filter_terms)
+        
         prompt = f"""
 请分析这个视频的内容，并根据以下标准进行评分：
 
-视频描述：{video_description if video_description else "无"}
+筛选条件：{filter_info}
+
+**重要限制：如果视频中没有出现上述筛选条件中的任何内容，请直接给出零分评价，无需考虑其他评分标准。**
 
 评分标准：
-1. 关键词相关性 (0-60分)：评估视频内容与描述的匹配度和主题一致性
+1. 关键词相关性 (0-60分)：评估视频内容与筛选条件的匹配度和主题一致性
 2. 内容原创性 (0-20分)：评估内容的原创程度和独特性
 3. 表达清晰度 (0-10分)：评估视频的表达是否清晰、逻辑是否合理
 4. 垃圾信息识别 (0-5分)：检测是否存在垃圾信息、重复内容或低质量内容
@@ -546,14 +561,15 @@ class GoogleGeminiClient:
         except Exception as e:
             logger.warning(f"清理临时文件失败: {e}")
     
-    def analyze_video_from_url(self, video_url: str, video_id: str, video_description: str = "") -> Optional[VideoAnalysisResult]:
+    def analyze_video_from_url(self, video_url: str, video_id: str, keyword: str = None, project_name: str = None) -> Optional[VideoAnalysisResult]:
         """
         从视频URL完整分析视频内容
         
         Args:
             video_url: 视频下载URL
             video_id: 视频ID
-            video_description: 视频描述
+            keyword: 关键词，用于匹配检查
+            project_name: 项目方名称，用于匹配检查
             
         Returns:
             视频分析结果
@@ -574,10 +590,10 @@ class GoogleGeminiClient:
                 file_uri = self.upload_video_to_gemini(temp_file_path)
                 if not file_uri:
                     return None
-                result = self.analyze_video_content(file_uri, video_description, video_id)
+                result = self.analyze_video_content(file_uri, video_id, keyword, project_name)
             else:
                 # 小文件：直接内联处理
-                result = self._analyze_video_inline(temp_file_path, video_id, video_description)
+                result = self._analyze_video_inline(temp_file_path, video_id, keyword, project_name)
             
             return result
             
@@ -586,7 +602,7 @@ class GoogleGeminiClient:
             if temp_file_path:
                 self.cleanup_temp_file(temp_file_path)
     
-    def _analyze_video_inline(self, video_path: str, video_id: str, video_description: str) -> Optional[VideoAnalysisResult]:
+    def _analyze_video_inline(self, video_path: str, video_id: str, keyword: str = None, project_name: str = None) -> Optional[VideoAnalysisResult]:
         """内联分析小视频文件，支持智能重试机制"""
         start_time = time.time()
         file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
@@ -609,7 +625,7 @@ class GoogleGeminiClient:
         import base64
         video_b64 = base64.b64encode(video_data).decode('utf-8')
         
-        prompt = self._build_analysis_prompt(video_description)
+        prompt = self._build_analysis_prompt(keyword=keyword, project_name=project_name)
         generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
         
         payload = {

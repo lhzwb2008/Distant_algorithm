@@ -30,10 +30,10 @@ simple_api = SimpleScoreAPI()
 # 任务存储（实际项目中应该使用Redis等持久化存储）
 tasks = {}
 
-def background_calculate_score(task_id, username, keyword, cookie=None):
+def background_calculate_score(task_id, username, keyword, project_name=None, cookie=None):
     """后台计算评分"""
     try:
-        logger.info(f"任务 {task_id}: 开始计算用户 {username} 的评分，关键词: {keyword or '无'}")
+        logger.info(f"任务 {task_id}: 开始计算用户 {username} 的评分，关键词: {keyword or '无'}，项目方: {project_name or '无'}")
         
         # 更新任务状态
         tasks[task_id]['status'] = 'processing'
@@ -48,8 +48,8 @@ def background_calculate_score(task_id, username, keyword, cookie=None):
         
         tasks[task_id]['progress'] = '正在分析视频内容...'
         
-        # 计算评分
-        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
+        # 计算评分（传入关键词和项目方名称）
+        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None, project_name=project_name if project_name else None)
         
         tasks[task_id]['progress'] = '正在生成详细报告...'
         
@@ -62,6 +62,7 @@ def background_calculate_score(task_id, username, keyword, cookie=None):
             'success': True,
             'username': username,
             'keyword': keyword or '无',
+            'project_name': project_name or '无',
             'score': round(creator_score.final_score, 2),
             'sec_uid': sec_uid,
             'breakdown': score_breakdown
@@ -87,6 +88,7 @@ def submit_task():
         data = request.get_json()
         username = data.get('username', '').strip()
         keyword = data.get('keyword', '').strip()
+        project_name = data.get('project_name', '').strip()
         # cookie参数现在是可选的，如果不提供会使用配置中的默认cookie
         cookie = data.get('cookie', '').strip() or None
         
@@ -105,16 +107,17 @@ def submit_task():
             'status': 'pending',
             'username': username,
             'keyword': keyword or '无',
+            'project_name': project_name or '无',
             'created_at': datetime.now().isoformat(),
             'progress': '任务已提交，等待处理...'
         }
         
         # 启动后台线程处理任务
-        thread = threading.Thread(target=background_calculate_score, args=(task_id, username, keyword, cookie))
+        thread = threading.Thread(target=background_calculate_score, args=(task_id, username, keyword, project_name, cookie))
         thread.daemon = True
         thread.start()
         
-        logger.info(f"任务 {task_id}: 已提交，用户: {username}，关键词: {keyword or '无'}")
+        logger.info(f"任务 {task_id}: 已提交，用户: {username}，关键词: {keyword or '无'}，项目方: {project_name or '无'}")
         
         return jsonify({
             'success': True,

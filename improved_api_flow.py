@@ -60,6 +60,7 @@ class ImprovedAPIFlow:
         self, 
         user_id: str, 
         keyword: str = None, 
+        project_name: str = None,
         max_videos: int = 100
     ) -> tuple[List[VideoDetail], Dict[str, QualityScore]]:
         """
@@ -89,15 +90,22 @@ class ImprovedAPIFlow:
         quality_scores = {}
         
         try:
-            if keyword:
-                # 如果有关键词，使用关键词筛选
-                logger.info(f"📡 使用关键词 '{keyword}' 获取匹配视频...")
-                videos = self.api_client.fetch_user_top_videos(user_id, max_videos, keyword)
-                logger.info(f"✅ 获取到 {len(videos)} 个匹配关键词的视频")
+            if keyword or project_name:
+                # 如果有关键词或项目方名称，使用筛选条件
+                filter_terms = []
+                if keyword:
+                    filter_terms.append(f"关键词 '{keyword}'")
+                if project_name:
+                    filter_terms.append(f"项目方 '{project_name}'")
+                logger.info(f"📡 使用筛选条件 {' | '.join(filter_terms)} 获取匹配视频...")
+                
+                # 传递关键词和项目方名称到API客户端
+                videos = self.api_client.fetch_user_top_videos(user_id, max_videos, keyword, project_name)
+                logger.info(f"✅ 获取到 {len(videos)} 个匹配筛选条件的视频")
                 
             else:
-                # 没有关键词，获取最近的视频但不进行AI评分
-                logger.info(f"📡 获取最近 {max_videos} 条视频（无关键词筛选）...")
+                # 没有筛选条件，获取最近的视频但不进行AI评分
+                logger.info(f"📡 获取最近 {max_videos} 条视频（无筛选条件）...")
                 videos = self.api_client.fetch_user_top_videos(user_id, max_videos)
                 logger.info(f"✅ 获取到 {len(videos)} 个视频")
                 
@@ -106,10 +114,11 @@ class ImprovedAPIFlow:
             videos = []
         
         # 单独处理内容分析，避免分析失败影响视频数据
-        if videos and keyword:
+        if videos and (keyword or project_name):
             try:
                 logger.info(f"🤖 开始对 {len(videos)} 个匹配视频进行内容分析...")
-                quality_scores = self.content_analyzer.analyze_videos_batch(videos)
+                # 传递关键词和项目方名称到内容分析器
+                quality_scores = self.content_analyzer.analyze_videos_batch(videos, keyword, project_name)
                 logger.info(f"✅ 内容分析完成: {len(quality_scores)} 个视频")
             except Exception as e:
                 logger.error(f"内容分析失败: {e}")

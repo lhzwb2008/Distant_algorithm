@@ -308,20 +308,26 @@ class TiKhubAPIClient:
             logger.error(f"获取用户视频列表失败: {e}")
             return []
             
-    def fetch_user_top_videos(self, user_id: str, count: int = 5, keyword: str = None) -> List[VideoDetail]:
+    def fetch_user_top_videos(self, user_id: str, count: int = 5, keyword: str = None, project_name: str = None) -> List[VideoDetail]:
         """获取用户作品的详细信息
         
         Args:
             user_id: 用户ID (secUid)
-            count: 获取作品数量，默认5个（当没有关键词时使用）
+            count: 获取作品数量，默认5个（当没有筛选条件时使用）
             keyword: 关键词筛选，如果提供则筛选包含该关键词的视频
+            project_name: 项目方名称筛选，如果提供则筛选包含该项目方名称的视频
             
         Returns:
             视频详情列表
         """
-        if keyword:
-            logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品")
-            # 当有关键词时，需要获取更多视频进行筛选
+        if keyword or project_name:
+            filter_terms = []
+            if keyword:
+                filter_terms.append(f"关键词 '{keyword}'")
+            if project_name:
+                filter_terms.append(f"项目方 '{project_name}'")
+            logger.info(f"开始获取用户 {user_id} 包含筛选条件 {' | '.join(filter_terms)} 的作品")
+            # 当有筛选条件时，需要获取更多视频进行筛选
             max_videos_to_check = Config.CONTENT_INTERACTION_MAX_VIDEOS
             max_pages = max_videos_to_check // 20 + 1  # 计算需要的页数
         else:
@@ -403,8 +409,8 @@ class TiKhubAPIClient:
                 all_videos.extend(videos)
                 logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
                 
-                # 如果有关键词筛选，检查是否已达到最大视频数量
-                if keyword and len(all_videos) >= max_videos_to_check:
+                # 如果有筛选条件，检查是否已达到最大视频数量
+                if (keyword or project_name) and len(all_videos) >= max_videos_to_check:
                     logger.info(f"已获取 {len(all_videos)} 个视频，达到最大限制 {max_videos_to_check} 个，停止获取更多页面")
                     break
                 
@@ -497,33 +503,52 @@ class TiKhubAPIClient:
         
         logger.info(f"分页获取完成，总共获取 {len(all_videos)} 个视频")
         
-        # 如果有关键词筛选，确保只处理前100个视频
-        if keyword and len(all_videos) > max_videos_to_check:
+        # 如果有筛选条件，确保只处理前100个视频
+        if (keyword or project_name) and len(all_videos) > max_videos_to_check:
             all_videos = all_videos[:max_videos_to_check]
             logger.info(f"截取前 {max_videos_to_check} 个视频进行处理，实际处理 {len(all_videos)} 个视频")
         
         # 从视频列表构建VideoDetail对象，并获取额外的指标数据
         video_details = []
         
-        # 如果有关键词，先筛选匹配的视频
-        if keyword:
+        # 如果有筛选条件，先筛选匹配的视频
+        if keyword or project_name:
             filtered_videos = []
-            logger.info(f"🔍 开始筛选包含关键词 '{keyword}' 的视频...")
+            filter_terms = []
+            if keyword:
+                filter_terms.append(f"关键词 '{keyword}'")
+            if project_name:
+                filter_terms.append(f"项目方 '{project_name}'")
+            logger.info(f"🔍 开始筛选包含 {' 或 '.join(filter_terms)} 的视频...")
+            
             for i, video in enumerate(all_videos, 1):
                 desc = video.get('desc', '')
                 video_id = video.get('id', 'unknown')
-                if keyword.lower() in desc.lower():
+                
+                # 检查是否匹配任一条件（或关系）
+                matches = False
+                match_reasons = []
+                
+                if keyword and keyword.lower() in desc.lower():
+                    matches = True
+                    match_reasons.append(f"关键词 '{keyword}'")
+                
+                if project_name and project_name.lower() in desc.lower():
+                    matches = True
+                    match_reasons.append(f"项目方 '{project_name}'")
+                
+                if matches:
                     filtered_videos.append(video)
-                    # logger.info(f"✅ 第{i}个视频匹配关键词 '{keyword}':")
+                    # logger.info(f"✅ 第{i}个视频匹配 {' 和 '.join(match_reasons)}:")
                     # logger.info(f"   📹 视频ID: {video_id}")
                     # logger.info(f"   📝 完整描述: {desc}")
                 else:
                     pass
-                    # logger.info(f"❌ 第{i}个视频不匹配关键词 '{keyword}':")
+                    # logger.info(f"❌ 第{i}个视频不匹配筛选条件:")
                     # logger.info(f"   📹 视频ID: {video_id}")
                     # logger.info(f"   📝 完整描述: {desc}")
             
-            logger.info(f"🎯 关键词 '{keyword}' 筛选结果: {len(filtered_videos)}/{len(all_videos)} 个视频匹配")
+            logger.info(f"🎯 筛选条件 {' 或 '.join(filter_terms)} 结果: {len(filtered_videos)}/{len(all_videos)} 个视频匹配")
             
             # 对筛选后的视频进行去重（基于video_id）
             seen_ids = set()
@@ -539,7 +564,7 @@ class TiKhubAPIClient:
             
             videos_to_process = unique_videos
         else:
-            # 如果没有关键词，按count截取
+            # 如果没有筛选条件，按count截取
             videos_to_process = all_videos[:count]
             
         for video in videos_to_process:

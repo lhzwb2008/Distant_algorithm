@@ -31,12 +31,14 @@ class VideoContentAnalyzer:
         
         self.api_client = TiKhubAPIClient()
         
-    def analyze_videos_batch(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
+    def analyze_videos_batch(self, videos: List[VideoDetail], keyword: str = None, project_name: str = None) -> Dict[str, QualityScore]:
         """
         批量分析视频内容（支持字幕和视频分析两种模式）
         
         Args:
             videos: 视频详情列表
+            keyword: 关键词，用于AI评分时的匹配检查
+            project_name: 项目方名称，用于AI评分时的匹配检查
             
         Returns:
             视频ID到QualityScore的映射字典
@@ -51,7 +53,7 @@ class VideoContentAnalyzer:
             return self._analyze_with_subtitles(videos)
         else:
             # 模式2：使用Google Gemini视频分析
-            return self._analyze_with_gemini(videos)
+            return self._analyze_with_gemini(videos, keyword, project_name)
     
     def _analyze_with_subtitles(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
         """使用字幕提取模式分析视频"""
@@ -93,7 +95,7 @@ class VideoContentAnalyzer:
         
         return results
     
-    def _analyze_with_gemini(self, videos: List[VideoDetail]) -> Dict[str, QualityScore]:
+    def _analyze_with_gemini(self, videos: List[VideoDetail], keyword: str = None, project_name: str = None) -> Dict[str, QualityScore]:
         """使用Google Gemini视频分析模式"""
         if not self.google_client:
             logger.error("Google Gemini客户端未初始化，无法使用视频分析模式")
@@ -110,7 +112,7 @@ class VideoContentAnalyzer:
         
         with ThreadPoolExecutor(max_workers=concurrent_requests) as executor:
             future_to_video = {
-                executor.submit(self._analyze_single_video_with_gemini, video): video 
+                executor.submit(self._analyze_single_video_with_gemini, video, keyword, project_name): video 
                 for video in videos
             }
             
@@ -151,7 +153,7 @@ class VideoContentAnalyzer:
             logger.error(f"视频 {video.video_id} 字幕质量评分失败: {e}")
             return None
     
-    def _analyze_single_video_with_gemini(self, video: VideoDetail) -> Optional[QualityScore]:
+    def _analyze_single_video_with_gemini(self, video: VideoDetail, keyword: str = None, project_name: str = None) -> Optional[QualityScore]:
         """使用Google Gemini分析单个视频"""
         try:
             # 添加延迟以避免Gemini API并发压力 (降低到2次/秒 = 0.5秒间隔)
@@ -163,11 +165,12 @@ class VideoContentAnalyzer:
                 logger.error(f"无法获取视频 {video.video_id} 的下载URL")
                 return None
             
-            # 使用Gemini分析视频
+            # 使用Gemini分析视频（不传入desc字段，完全基于视频内容）
             analysis_result = self.google_client.analyze_video_from_url(
                 video_url=video_url,
                 video_id=video.video_id,
-                video_description=video.desc
+                keyword=keyword,
+                project_name=project_name
             )
             
             if not analysis_result:
