@@ -66,10 +66,21 @@ class AccountQualityCalculator:
     def calculate_posting_score(self, video_details: List[VideoDetail]) -> Tuple[float, dict]:
         """计算发布频率得分
         
-        评分公式：max(0, 100 - abs(weekly_frequency - 21) * 3)
-        - 21 = 理想频次（每周21个视频，平均每天3个）
-        - 3 = 惩罚系数（偏离理想频次1个，扣3分）
-        - 最优频次：18-24次/周 (满分100)
+        评分公式：max(0, 100 - abs(weekly_frequency - 10) * 6)
+        - 10 = 理想频次（每周10个视频）
+        - 6 = 惩罚系数（偏离理想频次1个，扣6分）
+        - abs() = 取绝对值
+        - max(0, ...) = 最低0分
+        
+        示例计算：
+        - 每周1个 → max(0, 100 - 9*6) = 46分
+        - 每周3个 → max(0, 100 - 7*6) = 58分  
+        - 每周5个 → max(0, 100 - 5*6) = 70分 
+        - 每周7个 → max(0, 100 - 3*6) = 82分
+        - 每周10个 → max(0, 100 - 0*6) = 100分
+        - 每周15个 → max(0, 100 - 5*6) = 70分
+        - 每周17个 → max(0, 100 - 7*6) = 58分
+        - 每周20个 → max(0, 100 - 10*6) = 40分
         
         注意：基于最近三个月的数据计算发布频率
         
@@ -111,8 +122,8 @@ class AccountQualityCalculator:
             estimated_weekly_frequency = len(video_details) / 12.0
             
             # 应用评分公式
-            ideal_frequency = 21
-            penalty_coefficient = 3
+            ideal_frequency = 10
+            penalty_coefficient = 6
             deviation = abs(estimated_weekly_frequency - ideal_frequency)
             penalty = deviation * penalty_coefficient
             score = max(0, 100 - penalty)

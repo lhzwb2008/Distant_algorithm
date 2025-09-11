@@ -383,11 +383,11 @@ class CreatorScoreCalculator:
         """
         # 计算内容互动各项得分
         view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
-        like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count)
-        comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count)
-        share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count)
+        like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count, follower_count)
+        comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count, follower_count)
+        share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count, follower_count)
         save_score = self.content_calculator.calculate_save_score(
-            getattr(video, 'collect_count', 0), video.view_count
+            getattr(video, 'collect_count', 0), video.view_count, follower_count
         )
         
         # 计算内容互动总分（按权重）
@@ -425,11 +425,11 @@ class CreatorScoreCalculator:
         """
         # 计算内容互动各项得分
         view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
-        like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count)
-        comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count)
-        share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count)
+        like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count, follower_count)
+        comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count, follower_count)
+        share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count, follower_count)
         save_score = self.content_calculator.calculate_save_score(
-            getattr(video, 'collect_count', 0), video.view_count
+            getattr(video, 'collect_count', 0), video.view_count, follower_count
         )
         
         # 计算内容互动总分（按权重）

@@ -13,6 +13,60 @@ class ContentInteractionCalculator:
     def __init__(self):
         """初始化计算器"""
         pass
+    
+    def _get_follower_coefficient(self, follower_count: int) -> float:
+        """获取粉丝数量系数（系数1）
+        
+        根据粉丝数量确定基准系数：
+        - 0-100：基准 = 1.5倍粉丝量
+        - 100-1k：基准 = 1.0倍粉丝量
+        - 1k-5k：基准 = 0.24倍粉丝量
+        - 5k-10k：基准 = 0.10倍粉丝量
+        - 10k-50k：基准 = 0.04倍粉丝量
+        - 50k-100k：基准 = 0.05倍粉丝量
+        - 100k-500k：基准 = 0.06倍粉丝量
+        - 500k-1M：基准 = 0.05倍粉丝量
+        - 1M+：基准 = 0.04倍粉丝量
+        """
+        if follower_count <= 100:
+            return 1.5
+        elif follower_count <= 1000:
+            return 1.0
+        elif follower_count <= 5000:
+            return 0.24
+        elif follower_count <= 10000:
+            return 0.10
+        elif follower_count <= 50000:
+            return 0.04
+        elif follower_count <= 100000:
+            return 0.05
+        elif follower_count <= 500000:
+            return 0.06
+        elif follower_count <= 1000000:
+            return 0.05
+        else:
+            return 0.04
+    
+    def _get_view_coefficient(self, views: int) -> float:
+        """获取播放量系数（系数2）
+        
+        根据播放量确定基准系数：
+        - 0-1k：基准 = 2倍
+        - 1k-10k：基准 = 1倍
+        - 10k-100k：基准 = 0.7倍
+        - 100k-500k：基准 = 0.6倍
+        - 500k+：基准 = 0.5倍
+        """
+        if views <= 1000:
+            return 2.0
+        elif views <= 10000:
+            return 1.0
+        elif views <= 100000:
+            return 0.7
+        elif views <= 500000:
+            return 0.6
+        else:
+            return 0.5
         
     def calculate_view_score(self, views: int, follower_count: int) -> float:
         """计算视频播放量得分
@@ -42,122 +96,156 @@ class ContentInteractionCalculator:
             score = min((views / 2000) * 100, 100)
             return max(0.0, score)
         
-        # 根据粉丝数量确定基准系数（最新公式）
-        if follower_count <= 100:
-            base_coefficient = 1.5
-        elif follower_count <= 1000:
-            base_coefficient = 1.0
-        elif follower_count <= 5000:
-            base_coefficient = 0.24
-        elif follower_count <= 10000:
-            base_coefficient = 0.10
-        elif follower_count <= 50000:
-            base_coefficient = 0.04
-        elif follower_count <= 100000:
-            base_coefficient = 0.05
-        elif follower_count <= 500000:
-            base_coefficient = 0.06
-        elif follower_count <= 1000000:
-            base_coefficient = 0.05
-        else:
-            base_coefficient = 0.04
+        # 使用系数1
+        coefficient1 = self._get_follower_coefficient(follower_count)
             
-        expected_views = follower_count * base_coefficient
+        expected_views = follower_count * coefficient1
         view_ratio = views / expected_views
         score = min(view_ratio * 100, 100)
         return max(0.0, score)
         
-    def calculate_like_score(self, likes: int, views: int) -> float:
+    def calculate_like_score(self, likes: int, views: int, follower_count: int = 0) -> float:
         """计算点赞数得分
         
-        评分公式：min((likes / views) * 2500, 100)
-        基准逻辑：
-        - 4.0% 点赞率 = 100分 (基于行业优秀标准)
-        - 2.0% 点赞率 = 50分 (行业平均)
-        - 系数 = 100 / 4.0 * 100 = 2500
+        新公式：min((likes / max(followers*系数1*20%, views*系数2)) * 2500, 100)
         
         Args:
             likes: 点赞数
             views: 播放量
+            follower_count: 粉丝数量（可选，为0时使用旧公式）
             
         Returns:
             点赞得分 (0-100)
         """
         if views <= 0:
             return 0.0
+        
+        # 如果没有粉丝数据，使用旧公式保持向后兼容
+        if follower_count <= 0:
+            like_rate = likes / views
+            score = min(like_rate * 2500, 100)
+            return max(0.0, score)
+        
+        # 新公式：使用系数计算
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2  # 20%
+        view_base = views * coefficient2
+        
+        base_value = max(follower_base, view_base)
+        if base_value <= 0:
+            return 0.0
             
-        like_rate = likes / views
-        score = min(like_rate * 2500, 100)
+        score = min((likes / base_value) * 2500, 100)
         return max(0.0, score)
         
-    def calculate_comment_score(self, comments: int, views: int) -> float:
+    def calculate_comment_score(self, comments: int, views: int, follower_count: int = 0) -> float:
         """计算评论数得分
         
-        评分公式：min((comments / views) * 12500, 100)
-        基准逻辑：
-        - 经验数据：评论率通常为点赞率的1/5
-        - 如果点赞率4%为优秀，则评论率0.8%为优秀
-        - 系数 = 100 / 0.8 * 100 = 12500
+        新公式：min((comments / max(followers*系数1*20%, views*系数2)) * 12500, 100)
         
         Args:
             comments: 评论数
             views: 播放量
+            follower_count: 粉丝数量（可选，为0时使用旧公式）
             
         Returns:
             评论得分 (0-100)
         """
         if views <= 0:
             return 0.0
+        
+        # 如果没有粉丝数据，使用旧公式保持向后兼容
+        if follower_count <= 0:
+            comment_rate = comments / views
+            score = min(comment_rate * 12500, 100)
+            return max(0.0, score)
+        
+        # 新公式：使用系数计算
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2  # 20%
+        view_base = views * coefficient2
+        
+        base_value = max(follower_base, view_base)
+        if base_value <= 0:
+            return 0.0
             
-        comment_rate = comments / views
-        score = min(comment_rate * 12500, 100)
+        score = min((comments / base_value) * 12500, 100)
         return max(0.0, score)
         
-    def calculate_share_score(self, shares: int, views: int) -> float:
+    def calculate_share_score(self, shares: int, views: int, follower_count: int = 0) -> float:
         """计算分享数得分
         
-        评分公式：min((shares / views) * 25000, 100)
-        基准逻辑：
-        - 经验数据：分享率通常为点赞率的1/10
-        - 如果点赞率4%为优秀，则分享率0.4%为优秀
-        - 系数 = 100 / 0.4 * 100 = 25000
+        新公式：min((shares / max(followers*系数1*20%, views*系数2)) * 25000, 100)
         
         Args:
             shares: 分享数
             views: 播放量
+            follower_count: 粉丝数量（可选，为0时使用旧公式）
             
         Returns:
             分享得分 (0-100)
         """
         if views <= 0:
             return 0.0
+        
+        # 如果没有粉丝数据，使用旧公式保持向后兼容
+        if follower_count <= 0:
+            share_rate = shares / views
+            score = min(share_rate * 25000, 100)
+            return max(0.0, score)
+        
+        # 新公式：使用系数计算
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2  # 20%
+        view_base = views * coefficient2
+        
+        base_value = max(follower_base, view_base)
+        if base_value <= 0:
+            return 0.0
             
-        share_rate = shares / views
-        score = min(share_rate * 25000, 100)
+        score = min((shares / base_value) * 25000, 100)
         return max(0.0, score)
         
-    def calculate_save_score(self, saves: int, views: int) -> float:
+    def calculate_save_score(self, saves: int, views: int, follower_count: int = 0) -> float:
         """计算保存数得分
         
-        评分公式：min((saves / views) * 10000, 100)
-        基准逻辑：
-        - Save Rate通常介于评论率和分享率之间
-        - Save行为比Comment容易（无需思考回复内容）
-        - Save行为比Share更私密（不会暴露给关注者）
-        - 如果1%保存率为优秀，系数 = 100 / 1 * 100 = 10000
+        新公式：min((saves / max(followers*系数1*20%, views*系数2)) * 10000, 100)
         
         Args:
             saves: 保存数
             views: 播放量
+            follower_count: 粉丝数量（可选，为0时使用旧公式）
             
         Returns:
             保存得分 (0-100)
         """
         if views <= 0:
             return 0.0
+        
+        # 如果没有粉丝数据，使用旧公式保持向后兼容
+        if follower_count <= 0:
+            save_rate = saves / views
+            score = min(save_rate * 10000, 100)
+            return max(0.0, score)
+        
+        # 新公式：使用系数计算
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2  # 20%
+        view_base = views * coefficient2
+        
+        base_value = max(follower_base, view_base)
+        if base_value <= 0:
+            return 0.0
             
-        save_rate = saves / views
-        score = min(save_rate * 10000, 100)
+        score = min((saves / base_value) * 10000, 100)
         return max(0.0, score)
         
     def calculate_completion_score(self, completion_rate: float) -> float:
