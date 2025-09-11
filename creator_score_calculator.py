@@ -480,9 +480,12 @@ class CreatorScoreCalculator:
             base_score = self.content_quality_score * self.content_quality_weight
             return base_score * account_quality.multiplier
         
-        # 计算每个视频的评分（集成AI质量评分）
+        # 按发布时间排序（最新的在前）
+        sorted_videos = sorted(video_details, key=lambda v: v.create_time if v.create_time else datetime.min, reverse=True)
+        
+        # 计算每个视频的评分（集成AI质量评分，按时间顺序）
         video_scores = []
-        for video in video_details:
+        for video in sorted_videos:
             video_score = self._calculate_single_video_score_with_ai(video, follower_count, ai_quality_scores)
             video_scores.append(video_score)
         
@@ -492,10 +495,9 @@ class CreatorScoreCalculator:
         # 1. 峰值表现：取最高分
         peak_performance = max(video_scores)
         
-        # 2. 近期状态：最近3个视频的平均分
+        # 2. 近期状态：最近3个视频的平均分（现在是按时间最新的3个）
         recent_videos_count = min(3, n)
-        recent_start_index = max(0, n - recent_videos_count)
-        recent_scores = video_scores[recent_start_index:]
+        recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
         recent_performance = sum(recent_scores) / len(recent_scores)
         
         # 3. 整体水平：所有视频的平均分
@@ -861,9 +863,12 @@ class CreatorScoreCalculator:
             base_score = self.content_quality_score * self.content_quality_weight
             return base_score * account_quality.multiplier
         
-        # 计算每个视频的评分
+        # 按发布时间排序（最新的在前）
+        sorted_videos = sorted(video_details, key=lambda v: v.create_time if v.create_time else datetime.min, reverse=True)
+        
+        # 计算每个视频的评分（按时间顺序）
         video_scores = []
-        for video in video_details:
+        for video in sorted_videos:
             video_score = self._calculate_single_video_score(video, follower_count)
             video_scores.append(video_score)
         
@@ -872,10 +877,9 @@ class CreatorScoreCalculator:
         # 1. 峰值表现：最高分数 (40%权重)
         peak_performance = max(video_scores)
         
-        # 2. 近期状态：最近3条视频平均分 (40%权重)
+        # 2. 近期状态：最近3条视频平均分 (40%权重，现在是按时间最新的3个)
         recent_videos_count = min(3, n)
-        recent_start_index = max(0, n - recent_videos_count)
-        recent_scores = video_scores[recent_start_index:]
+        recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
         recent_performance = sum(recent_scores) / len(recent_scores)
         
         # 3. 整体水平：所有视频平均分 (20%权重)
