@@ -100,10 +100,10 @@ class VideoContentAnalyzer:
             return {}
             
         total_videos = len(videos)
-        # 使用 TikHub API 并发限制，因为每个视频都需要调用 fetch_one_video API
-        concurrent_requests = min(Config.TIKHUB_CONCURRENT_REQUESTS, total_videos)
+        # 使用 Google API 并发限制，避免500错误
+        concurrent_requests = min(Config.GOOGLE_CONCURRENT_REQUESTS, total_videos)
         
-        logger.info(f"🤖 使用Google Gemini视频分析模式，共 {total_videos} 个视频，并发数: {concurrent_requests} (受TikHub API限制)")
+        logger.info(f"🤖 使用Google Gemini视频分析模式，共 {total_videos} 个视频，并发数: {concurrent_requests} (限制Gemini API并发)")
         
         results = {}
         completed_count = 0
@@ -154,8 +154,8 @@ class VideoContentAnalyzer:
     def _analyze_single_video_with_gemini(self, video: VideoDetail) -> Optional[QualityScore]:
         """使用Google Gemini分析单个视频"""
         try:
-            # 添加小延迟以避免API限流 (10次/秒 = 0.1秒间隔)
-            time.sleep(0.1)
+            # 添加延迟以避免Gemini API并发压力 (降低到2次/秒 = 0.5秒间隔)
+            time.sleep(0.5)
             
             # 获取视频下载URL
             video_url = self._get_video_download_url(video.video_id)
@@ -208,53 +208,17 @@ class VideoContentAnalyzer:
             video_info = aweme_detail.get('video', {})
             
             # 优先尝试从 bit_rate 数组中获取 lowest_540_1 清晰度
-            bit_rate_list = video_info.get('bit_rate', [])
-            if bit_rate_list and isinstance(bit_rate_list, list):
-                logger.info(f"📺 视频 {video_id} 可用清晰度数量: {len(bit_rate_list)}")
-                
-                # 寻找 lowest_540_1 清晰度
-                for quality_option in bit_rate_list:
-                    if isinstance(quality_option, dict):
-                        gear_name = quality_option.get('gear_name', '')
-                        if gear_name == 'lowest_540_1':
-                            play_addr = quality_option.get('play_addr', {})
-                            url_list = play_addr.get('url_list', [])
-                            if url_list:
-                                download_url = url_list[0]
-                                quality_info = f"{quality_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
-                                logger.info(f"✅ 获取视频 {video_id} lowest_540_1清晰度URL成功 ({quality_info})")
-                                return download_url
-                
-                # 如果没找到 lowest_540_1，尝试其他低清晰度选项
-                logger.info(f"⚠️ 视频 {video_id} 没有 lowest_540_1 清晰度，尝试其他低清晰度...")
-                
-                # 按优先级尝试其他清晰度：lower_540_1 > adapt_540_1 > 其他
-                preferred_gears = ['lower_540_1', 'adapt_540_1']
-                for preferred_gear in preferred_gears:
-                    for quality_option in bit_rate_list:
-                        if isinstance(quality_option, dict):
-                            gear_name = quality_option.get('gear_name', '')
-                            if gear_name == preferred_gear:
-                                play_addr = quality_option.get('play_addr', {})
-                                url_list = play_addr.get('url_list', [])
-                                if url_list:
-                                    download_url = url_list[0]
-                                    quality_info = f"{quality_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
-                                    logger.info(f"✅ 获取视频 {video_id} {gear_name}清晰度URL成功 ({quality_info})")
-                                    return download_url
-                
-                # 如果还没找到，使用最低码率的选项
-                logger.info(f"⚠️ 视频 {video_id} 没有预期的清晰度选项，选择最低码率...")
-                lowest_bitrate_option = min(bit_rate_list, key=lambda x: x.get('bit_rate', float('inf')) if isinstance(x, dict) else float('inf'))
-                if isinstance(lowest_bitrate_option, dict):
-                    play_addr = lowest_bitrate_option.get('play_addr', {})
-                    url_list = play_addr.get('url_list', [])
-                    if url_list:
-                        download_url = url_list[0]
-                        gear_name = lowest_bitrate_option.get('gear_name', 'unknown')
-                        quality_info = f"{lowest_bitrate_option.get('bit_rate', 0)}bps, {play_addr.get('height', 0)}x{play_addr.get('width', 0)}"
-                        logger.info(f"✅ 获取视频 {video_id} {gear_name}清晰度URL成功 ({quality_info})")
-                        return download_url
+            # 直接使用默认play_addr，不再选择特定清晰度
+            # 这样可以避免低质量视频导致的Gemini API 500错误
+            logger.info(f"📺 视频 {video_id} 使用默认play_addr（不选择特定清晰度）...")
+            
+            if video_info:
+                play_addr_info = video_info.get('play_addr', {})
+                url_list = play_addr_info.get('url_list', [])
+                if url_list:
+                    download_url = url_list[0]
+                    logger.info(f"✅ 获取视频 {video_id} 默认play_addr URL成功")
+                    return download_url
             
             # 回退到原有逻辑：尝试获取无水印版本
             logger.info(f"⚠️ 视频 {video_id} bit_rate数组不可用，回退到传统方式...")

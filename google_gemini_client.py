@@ -587,92 +587,165 @@ class GoogleGeminiClient:
                 self.cleanup_temp_file(temp_file_path)
     
     def _analyze_video_inline(self, video_path: str, video_id: str, video_description: str) -> Optional[VideoAnalysisResult]:
-        """内联分析小视频文件"""
+        """内联分析小视频文件，支持智能重试机制"""
+        start_time = time.time()
+        file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+        logger.info(f"🤖 使用内联方式分析视频 {video_id}... (文件大小: {file_size_mb:.2f}MB)")
+        
+        # 检查API密钥
+        if not self.api_key:
+            logger.error("Google API Key未配置，无法进行视频分析")
+            return None
+        
+        # 读取视频数据（只读取一次）
         try:
-            start_time = time.time()
-            file_size_mb = os.path.getsize(video_path) / (1024 * 1024)
-            logger.info(f"🤖 使用内联方式分析视频 {video_id}... (文件大小: {file_size_mb:.2f}MB)")
-            
-            # 检查API密钥
-            if not self.api_key:
-                logger.error("Google API Key未配置，无法进行视频分析")
-                return None
-            
-            # 读取视频数据
             with open(video_path, 'rb') as f:
                 video_data = f.read()
-            
-            # Base64编码
-            import base64
-            video_b64 = base64.b64encode(video_data).decode('utf-8')
-            
-            prompt = self._build_analysis_prompt(video_description)
-            
-            generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
-            logger.info(f"🔗 调用Gemini API: {generate_url}")
-            
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {
-                                "inlineData": {
-                                    "mimeType": "video/mp4",
-                                    "data": video_b64
-                                }
-                            },
-                            {
-                                "text": prompt
-                            }
-                        ]
-                    }
-                ]
-            }
-            
-            headers = {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': self.api_key
-            }
-            
-            logger.info(f"📤 发送请求到Gemini API...")
-            response = requests.post(
-                generate_url,
-                json=payload,
-                headers=headers,
-                timeout=self.timeout
-            )
-            
-            logger.info(f"📥 收到响应，状态码: {response.status_code}")
-            
-            if response.status_code != 200:
-                logger.error(f"Gemini API错误: {response.status_code} - {response.text}")
-                return None
-            
-            result = response.json()
-            
-            if 'candidates' in result and result['candidates']:
-                content = result['candidates'][0]['content']['parts'][0]['text']
-                analysis_time = time.time() - start_time
-                logger.info(f"✅ Gemini分析完成，响应长度: {len(content)} 字符，总耗时: {analysis_time:.2f}秒")
-                return self._parse_analysis_result(content, video_id)
-            else:
-                analysis_time = time.time() - start_time
-                logger.error(f"❌ Gemini响应格式异常 (耗时: {analysis_time:.2f}秒): {result}")
-                return None
-                
-        except requests.exceptions.ConnectionError as e:
-            analysis_time = time.time() - start_time
-            logger.error(f"❌ Gemini API连接错误 (耗时: {analysis_time:.2f}秒): {e}")
-            logger.info("💡 可能的解决方案:")
-            logger.info("   1. 检查网络连接")
-            logger.info("   2. 检查Google API Key是否有效")
-            logger.info("   3. 检查是否需要VPN访问Google服务")
-            return None
-        except requests.exceptions.Timeout as e:
-            analysis_time = time.time() - start_time
-            logger.error(f"❌ Gemini API超时 (耗时: {analysis_time:.2f}秒): {e}")
-            return None
         except Exception as e:
-            analysis_time = time.time() - start_time
-            logger.error(f"❌ 内联视频分析失败 (耗时: {analysis_time:.2f}秒): {e}")
+            logger.error(f"❌ 读取视频文件失败 {video_id}: {e}")
             return None
+        
+        # Base64编码（只编码一次）
+        import base64
+        video_b64 = base64.b64encode(video_data).decode('utf-8')
+        
+        prompt = self._build_analysis_prompt(video_description)
+        generate_url = f"{self.base_url}/models/{self.model.replace('models/', '')}:generateContent"
+        
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "inlineData": {
+                                "mimeType": "video/mp4",
+                                "data": video_b64
+                            }
+                        },
+                        {
+                            "text": prompt
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': self.api_key
+        }
+        
+        # 开始重试循环
+        max_retries = Config.GOOGLE_MAX_RETRIES
+        retry_delay = Config.GOOGLE_RETRY_DELAY
+        backoff_factor = Config.GOOGLE_RETRY_BACKOFF
+        
+        for attempt in range(max_retries + 1):  # +1 因为第一次不算重试
+            try:
+                if attempt > 0:
+                    logger.info(f"🔄 视频 {video_id} 第 {attempt} 次重试，延迟 {retry_delay:.1f}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= backoff_factor  # 指数退避
+                
+                logger.info(f"🔗 调用Gemini API: {generate_url} (尝试 {attempt + 1}/{max_retries + 1})")
+                logger.info(f"📤 发送请求到Gemini API...")
+                
+                response = requests.post(
+                    generate_url,
+                    json=payload,
+                    headers=headers,
+                    timeout=self.timeout
+                )
+                
+                logger.info(f"📥 收到响应，状态码: {response.status_code}")
+                
+                # 成功响应
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    if 'candidates' in result and result['candidates']:
+                        content = result['candidates'][0]['content']['parts'][0]['text']
+                        analysis_time = time.time() - start_time
+                        retry_info = f" (重试 {attempt} 次)" if attempt > 0 else ""
+                        logger.info(f"✅ Gemini分析完成，响应长度: {len(content)} 字符，总耗时: {analysis_time:.2f}秒{retry_info}")
+                        return self._parse_analysis_result(content, video_id)
+                    else:
+                        analysis_time = time.time() - start_time
+                        logger.error(f"❌ Gemini响应格式异常 (耗时: {analysis_time:.2f}秒): {result}")
+                        return None
+                
+                # 检查是否为可重试的错误
+                elif self._is_retryable_error(response.status_code):
+                    if attempt < max_retries:
+                        error_msg = self._get_error_message(response)
+                        logger.warning(f"⚠️ 视频 {video_id} Gemini API可重试错误 {response.status_code}: {error_msg}")
+                        continue  # 继续重试
+                    else:
+                        error_msg = self._get_error_message(response)
+                        logger.error(f"❌ 视频 {video_id} Gemini API错误，已达最大重试次数 {response.status_code}: {error_msg}")
+                        return None
+                
+                # 不可重试的错误
+                else:
+                    error_msg = self._get_error_message(response)
+                    logger.error(f"❌ 视频 {video_id} Gemini API不可重试错误 {response.status_code}: {error_msg}")
+                    return None
+                    
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries:
+                    logger.warning(f"⚠️ 视频 {video_id} Gemini API连接错误，将重试: {e}")
+                    continue
+                else:
+                    analysis_time = time.time() - start_time
+                    logger.error(f"❌ 视频 {video_id} Gemini API连接错误 (耗时: {analysis_time:.2f}秒): {e}")
+                    logger.info("💡 可能的解决方案:")
+                    logger.info("   1. 检查网络连接")
+                    logger.info("   2. 检查Google API Key是否有效")
+                    logger.info("   3. 检查是否需要VPN访问Google服务")
+                    return None
+                    
+            except requests.exceptions.Timeout as e:
+                if attempt < max_retries:
+                    logger.warning(f"⚠️ 视频 {video_id} Gemini API超时，将重试: {e}")
+                    continue
+                else:
+                    analysis_time = time.time() - start_time
+                    logger.error(f"❌ 视频 {video_id} Gemini API超时 (耗时: {analysis_time:.2f}秒): {e}")
+                    return None
+                    
+            except Exception as e:
+                analysis_time = time.time() - start_time
+                logger.error(f"❌ 视频 {video_id} 内联视频分析失败 (耗时: {analysis_time:.2f}秒): {e}")
+                return None
+        
+        # 如果所有重试都失败了
+        analysis_time = time.time() - start_time
+        logger.error(f"❌ 视频 {video_id} Gemini分析最终失败，已重试 {max_retries} 次 (总耗时: {analysis_time:.2f}秒)")
+        return None
+    
+    def _is_retryable_error(self, status_code: int) -> bool:
+        """判断HTTP状态码是否为可重试的错误"""
+        retryable_codes = {
+            500,  # Internal Server Error
+            502,  # Bad Gateway
+            503,  # Service Unavailable (模型超载)
+            504,  # Gateway Timeout
+            429,  # Too Many Requests (速率限制)
+        }
+        return status_code in retryable_codes
+    
+    def _get_error_message(self, response) -> str:
+        """从响应中提取错误消息"""
+        try:
+            error_data = response.json()
+            if 'error' in error_data:
+                error_info = error_data['error']
+                message = error_info.get('message', '未知错误')
+                status = error_info.get('status', '')
+                if status:
+                    return f"{message} ({status})"
+                return message
+            return response.text
+        except:
+            return response.text
+    
