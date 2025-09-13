@@ -23,6 +23,7 @@ class QualityScore:
     promotion_score: float  # 推广内容识别 (0-100, 100表示非推广内容)
     total_score: float  # 总分 (0-100)
     reasoning: str  # 评分逻辑说明
+    zero_score_reason: str = ""  # 0分原因标记（当total_score为0时的具体原因）
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
@@ -33,7 +34,8 @@ class QualityScore:
             'spam_score': self.spam_score,
             'promotion_score': self.promotion_score,
             'total_score': self.total_score,
-            'reasoning': self.reasoning
+            'reasoning': self.reasoning,
+            'zero_score_reason': self.zero_score_reason
         }
 
 class OpenRouterClient:
@@ -212,7 +214,8 @@ class OpenRouterClient:
                     spam_score=float(score_data.get('spam_score', 0)),
                     promotion_score=float(score_data.get('promotion_score', 0)),
                     total_score=float(score_data.get('total_score', 0)),
-                    reasoning=reasoning_str
+                    reasoning=reasoning_str,
+                    zero_score_reason=""
                 )
                 
                 logger.info(f"视频质量评分完成，总分: {quality_score.total_score}")
@@ -230,7 +233,8 @@ class OpenRouterClient:
                     spam_score=0,
                     promotion_score=0,
                     total_score=0,
-                    reasoning=f"评分解析失败: {str(e)}"
+                    reasoning=f"评分解析失败: {str(e)}",
+                    zero_score_reason="评分解析失败"
                 )
                 
         except Exception as e:
@@ -242,5 +246,6 @@ class OpenRouterClient:
                 spam_score=0,
                 promotion_score=0,
                 total_score=0,
-                reasoning=f"评分失败: {str(e)}"
+                reasoning=f"评分失败: {str(e)}",
+                zero_score_reason="评分失败"
             )

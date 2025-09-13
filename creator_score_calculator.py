@@ -487,6 +487,19 @@ class CreatorScoreCalculator:
             # 重要逻辑：如果没有AI评分数据，说明视频不符合筛选条件，直接返回0分
             # 这种情况通常发生在关键词筛选时，视频内容不包含目标关键词
             if ai_quality_scores is not None:  # 如果提供了AI评分字典但该视频不在其中
+                # 为该视频创建一个0分的QualityScore对象，记录0分原因
+                zero_score = QualityScore(
+                    total_score=0.0,
+                    keyword_score=0.0,
+                    originality_score=0.0,
+                    clarity_score=0.0,
+                    spam_score=0.0,
+                    promotion_score=0.0,
+                    reasoning="视频内容不包含指定的关键词或项目方名称",
+                    zero_score_reason="视频内容不包含指定的关键词或项目方名称"
+                )
+                # 将该评分添加到字典中，以便在详细评分中显示
+                ai_quality_scores[video.video_id] = zero_score
                 return 0.0
             content_quality_score = self.content_quality_score
         
@@ -647,7 +660,8 @@ class CreatorScoreCalculator:
                     "AI质量评分": {
                         "AI总分": f"{ai_score:.2f}",
                         "详细计算": ai_details,
-                        "评分理由": ai_quality_scores[video.video_id].reasoning if ai_quality_scores and video.video_id in ai_quality_scores else "无AI评分"
+                        "评分理由": ai_quality_scores[video.video_id].reasoning if ai_quality_scores and video.video_id in ai_quality_scores else "无AI评分",
+                        "0分原因": ai_quality_scores[video.video_id].zero_score_reason if ai_quality_scores and video.video_id in ai_quality_scores and ai_quality_scores[video.video_id].zero_score_reason else None
                     },
                     "视频总分": {
                         "总分": "链接无效" if video_total_score == -1.0 else f"{video_total_score:.2f}",

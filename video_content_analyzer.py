@@ -153,7 +153,8 @@ class VideoContentAnalyzer:
                 spam_score=0,
                 promotion_score=0,
                 total_score=0,
-                reasoning="视频没有字幕数据，无法进行AI质量评分"
+                reasoning="视频没有字幕数据，无法进行AI质量评分",
+                zero_score_reason="无字幕数据"
             )
         
         try:
@@ -172,7 +173,8 @@ class VideoContentAnalyzer:
                 spam_score=0,
                 promotion_score=0,
                 total_score=0,
-                reasoning=f"字幕质量评分失败: {str(e)}"
+                reasoning=f"字幕质量评分失败: {str(e)}",
+                zero_score_reason="字幕质量评分失败"
             )
     
     def _analyze_single_video_with_gemini(self, video: VideoDetail, keyword: str = None, project_name: str = None) -> Optional[QualityScore]:
@@ -192,7 +194,8 @@ class VideoContentAnalyzer:
                     spam_score=0,
                     promotion_score=0,
                     total_score=0,
-                    reasoning="视频链接无效或已失效，无法获取视频内容进行AI分析"
+                    reasoning="视频链接无效或已失效，无法获取视频内容进行AI分析",
+                    zero_score_reason="视频链接无效"
                 )
             
             # 使用Gemini分析视频（不传入desc字段，完全基于视频内容）
@@ -211,7 +214,8 @@ class VideoContentAnalyzer:
                     spam_score=0,
                     promotion_score=0,
                     total_score=0,
-                    reasoning="Gemini视频分析失败，可能是视频格式不支持或内容无法识别"
+                    reasoning="Gemini视频分析失败，可能是视频格式不支持或内容无法识别",
+                    zero_score_reason="Gemini分析失败"
                 )
             
             # 转换为QualityScore格式
@@ -227,7 +231,8 @@ class VideoContentAnalyzer:
                 spam_score=0,
                 promotion_score=0,
                 total_score=0,
-                reasoning=f"Gemini视频分析异常: {str(e)}"
+                reasoning=f"Gemini视频分析异常: {str(e)}",
+                zero_score_reason="Gemini分析异常"
             )
     
     def _get_video_download_url(self, video_id: str) -> Optional[str]:
@@ -306,6 +311,22 @@ class VideoContentAnalyzer:
     
     def _convert_gemini_result_to_quality_score(self, result: VideoAnalysisResult) -> QualityScore:
         """将Gemini分析结果转换为QualityScore格式"""
+        # 判断0分原因
+        zero_score_reason = ""
+        if result.total_score == 0.0:
+            if isinstance(result.reasoning, dict):
+                keyword_reasoning = result.reasoning.get('keyword_reasoning', '')
+                if '不包含' in keyword_reasoning or '无关' in keyword_reasoning or '未提及' in keyword_reasoning:
+                    zero_score_reason = "视频内容不包含关键词或项目方名称"
+                else:
+                    zero_score_reason = "内容质量不符合标准"
+            else:
+                reasoning_str = str(result.reasoning)
+                if '不包含' in reasoning_str or '无关' in reasoning_str or '未提及' in reasoning_str:
+                    zero_score_reason = "视频内容不包含关键词或项目方名称"
+                else:
+                    zero_score_reason = "内容质量不符合标准"
+        
         return QualityScore(
             keyword_score=result.keyword_relevance,
             originality_score=result.originality_score,
@@ -313,7 +334,8 @@ class VideoContentAnalyzer:
             spam_score=result.spam_score,
             promotion_score=result.promotion_score,
             total_score=result.total_score,
-            reasoning=result.reasoning
+            reasoning=result.reasoning,
+            zero_score_reason=zero_score_reason
         )
     
     def get_analysis_mode_info(self) -> Dict[str, Any]:

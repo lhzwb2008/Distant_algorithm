@@ -626,6 +626,11 @@
                                                         <strong>AI评分理由:</strong> ${typeof video.AI质量评分.评分理由 === 'string' ? video.AI质量评分.评分理由 : JSON.stringify(video.AI质量评分.评分理由)}
                                                     </div>
                                                 ` : ''}
+                                                ${video.AI质量评分['0分原因'] ? `
+                                                    <div style="font-size: 12px; color: #dc3545; margin-top: 4px; padding: 6px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px;">
+                                                        <strong>⚠️ 0分原因:</strong> ${video.AI质量评分['0分原因']}
+                                                    </div>
+                                                ` : ''}
                                             </div>
                                             
                                             <!-- 视频总分 -->
