@@ -877,7 +877,7 @@ class CreatorScoreCalculator:
             if content_interaction_videos:
                 print(f"   • 视频总数: {len(content_interaction_videos)} 个")
                 print(f"   • 峰值表现: {peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}")
-                print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_scores)}条视频)")
+                print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_valid_scores)}条有效视频)")
                 print(f"   • 整体水平: {overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有视频)")
                 print(f"   • 基础分数: {base_score:.2f}")
                 print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
