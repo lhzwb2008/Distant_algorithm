@@ -527,13 +527,44 @@ class GoogleGeminiClient:
             import json
             import re
             
-            # 提取JSON部分
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if not json_match:
+            # 记录原始响应用于调试
+            logger.debug(f"原始Gemini响应: {content[:500]}...")
+            
+            # 多种方式尝试提取JSON
+            json_str = None
+            
+            # 方法1: 提取```json代码块
+            json_block_match = re.search(r'```json\s*({.*?})\s*```', content, re.DOTALL | re.IGNORECASE)
+            if json_block_match:
+                json_str = json_block_match.group(1)
+                logger.debug("使用json代码块提取")
+            
+            # 方法2: 提取第一个完整的JSON对象
+            if not json_str:
+                json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group()
+                    logger.debug("使用正则表达式提取")
+            
+            # 方法3: 查找最大的大括号内容
+            if not json_str:
+                brace_matches = re.findall(r'\{.*?\}', content, re.DOTALL)
+                if brace_matches:
+                    json_str = max(brace_matches, key=len)
+                    logger.debug("使用最大括号内容提取")
+            
+            if not json_str:
                 logger.error("无法从Gemini响应中提取JSON")
                 return None
             
-            json_str = json_match.group()
+            # 清理JSON字符串
+            json_str = json_str.strip()
+            
+            # 尝试修复常见的JSON格式问题
+            json_str = self._fix_json_format(json_str)
+            
+            logger.debug(f"提取的JSON: {json_str[:200]}...")
+            
             data = json.loads(json_str)
             
             return VideoAnalysisResult(
@@ -548,9 +579,41 @@ class GoogleGeminiClient:
                 reasoning=data.get('reasoning', {})
             )
             
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析失败: {e}")
+            logger.error(f"问题JSON内容: {json_str if 'json_str' in locals() else 'N/A'}")
+            return None
         except Exception as e:
             logger.error(f"解析Gemini分析结果失败: {e}")
             return None
+    
+    def _fix_json_format(self, json_str: str) -> str:
+        """修复常见的JSON格式问题"""
+        try:
+            import re
+            
+            # 移除可能的markdown标记
+            json_str = re.sub(r'^```json\s*', '', json_str, flags=re.IGNORECASE)
+            json_str = re.sub(r'\s*```$', '', json_str)
+            
+            # 移除注释
+            json_str = re.sub(r'//.*?\n', '\n', json_str)
+            json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+            
+            # 修复尾随逗号
+            json_str = re.sub(r',\s*}', '}', json_str)
+            json_str = re.sub(r',\s*]', ']', json_str)
+            
+            # 修复单引号为双引号
+            json_str = re.sub(r"(?<!\\)'([^']*?)(?<!\\)'", r'"\1"', json_str)
+            
+            # 修复未引用的键名
+            json_str = re.sub(r'(\w+)\s*:', r'"\1":', json_str)
+            
+            return json_str
+        except Exception as e:
+            logger.warning(f"JSON格式修复失败: {e}")
+            return json_str
     
     def cleanup_temp_file(self, file_path: str):
         """清理临时文件"""
