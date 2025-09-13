@@ -691,7 +691,7 @@ class CreatorScoreCalculator:
                     "质量加权系数": f"根据账户质量总分计算得出 {creator_score.account_quality.multiplier:.3f}"
                 }
             },
-            "各视频详细评分": individual_videos,
+            "individual_videos": individual_videos,
             "内容互动详细计算过程": creator_score.content_interaction.calculation_details or {},
             "最终评分详细计算": {
                 "算法说明": "40%峰值表现 + 40%近期状态 + 20%整体水平",
