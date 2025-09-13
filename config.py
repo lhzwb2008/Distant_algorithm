@@ -20,7 +20,8 @@ class Config:
     TIKHUB_API_KEY = os.getenv('TIKHUB_API_KEY')
     TIKHUB_BASE_URL = os.getenv('TIKHUB_BASE_URL', 'https://api.tikhub.dev')  # 使用正确的API URL
     TIKHUB_REQUEST_TIMEOUT = int(os.getenv('TIKHUB_REQUEST_TIMEOUT', '30'))
-    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '25'))  # 增加到25次，确保覆盖限流恢复时间
+    TIKHUB_MAX_RETRIES = int(os.getenv('TIKHUB_MAX_RETRIES', '5'))  # 默认重试5次，可通过.env配置
+    TIKHUB_RETRY_DELAY = float(os.getenv('TIKHUB_RETRY_DELAY', '5.0'))  # 重试延迟（秒），可通过.env配置
     TIKHUB_CONCURRENT_REQUESTS = int(os.getenv('TIKHUB_CONCURRENT_REQUESTS', '10'))  # TikHub API并发数限制为10
     
     # OpenRouter API配置 - 用于视频质量评分

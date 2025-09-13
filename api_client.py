@@ -87,43 +87,49 @@ class TiKhubAPIClient:
                 # 生成curl命令供调试
                 curl_command = self._generate_curl_command(url, params)
                 
-                # 对于分页请求的400错误，可能是cursor无效，不需要重试太多次
-                if "400 Client Error" in str(e) and "cursor=" in str(params):
-                    logger.warning(f"分页请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
+                # 检查是否是400错误
+                is_400_error = "400 Client Error" in str(e)
+                
+                if is_400_error:
+                    # 对于400错误，需要区分不同情况
+                    logger.warning(f"400错误 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
                     logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
-                    # 对于分页400错误，只重试3次就放弃
-                    if attempt >= 2:
-                        logger.warning(f"分页请求连续失败，可能已到达数据边界或cursor无效")
-                        raise e
+                    
+                    
+                    # 检查是否是aweme_id相关的请求
+                    if params and "aweme_id" in params and "fetch_one_video" in url:
+                        logger.error(f"🚫 视频ID无效或视频不存在: aweme_id={params.get('aweme_id', 'N/A')}")
+                        logger.error(f"🚫 400错误通常表示视频ID无效、视频已删除或设置为私密，无需重试")
+                        raise e  # 立即失败，不重试
+                    
+                    # 对于分页请求的400错误，可能是cursor无效
+                    elif "cursor=" in str(params):
+                        if attempt >= 2:  # 分页400错误只重试3次
+                            logger.warning(f"分页请求连续失败，可能已到达数据边界或cursor无效")
+                            raise e
+                    
+                    # 其他400错误可能是限流，可以重试但使用更长延迟
+                    else:
+                        if attempt == Config.TIKHUB_MAX_RETRIES - 1:
+                            logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，抛出异常")
+                            raise e
                 else:
+                    # 非400错误的处理
                     logger.warning(f"请求失败 (尝试 {attempt + 1}/{Config.TIKHUB_MAX_RETRIES}): {e}")
                     logger.warning(f"🐛 调试用curl命令:\n{curl_command}")
                     if attempt == Config.TIKHUB_MAX_RETRIES - 1:
                         logger.error(f"API请求失败，已重试{Config.TIKHUB_MAX_RETRIES}次，抛出异常")
                         raise e
-                # 实现智能重试延迟
-                if Config.ERROR_HANDLING.get('exponential_backoff', False):
-                    # 指数退避策略，适应分钟级限流
-                    base_delay = Config.ERROR_HANDLING['retry_delay']
-                    backoff_factor = Config.ERROR_HANDLING.get('backoff_factor', 1.5)
-                    max_delay = Config.ERROR_HANDLING.get('max_delay', 30)
-                    
-                    # 计算延迟时间：基础延迟 * (退避因子 ^ 尝试次数)
-                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
-                    
-                    # 对于400错误（通常是限流），使用更长的延迟
-                    if "400 Client Error" in str(e):
-                        delay = max(delay, 5)  # 至少5秒
-                        if attempt >= 10:  # 第10次重试后，使用更长延迟
-                            delay = max(delay, 15)  # 至少15秒
-                        if attempt >= 15:  # 第15次重试后，使用最长延迟
-                            delay = max(delay, 25)  # 至少25秒
-                    
-                    logger.info(f"等待 {delay:.1f} 秒后进行第 {attempt + 2} 次重试...")
-                    time.sleep(delay)
-                else:
-                    # 原有的线性延迟
-                    time.sleep(Config.ERROR_HANDLING['retry_delay'] * (attempt + 1))
+                
+                # 使用配置的重试延迟
+                delay = Config.TIKHUB_RETRY_DELAY
+                
+                # 对于400错误（可能是限流），使用更长的延迟
+                if is_400_error:
+                    delay = max(delay, 10)  # 至少10秒
+                
+                logger.info(f"等待 {delay:.1f} 秒后进行第 {attempt + 2} 次重试...")
+                time.sleep(delay)
     
     def _generate_curl_command(self, url: str, params: Dict[str, Any] = None) -> str:
         """生成curl命令供调试使用"""
