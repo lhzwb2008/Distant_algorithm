@@ -604,20 +604,25 @@ class GoogleGeminiClient:
             json_str = re.sub(r',\s*}', '}', json_str)
             json_str = re.sub(r',\s*]', ']', json_str)
             
-            # 修复字符串值中的未转义引号（更安全的方式）
-            # 先标记所有正确的字符串边界
+            # 修复错误的转义引号键名（如 \"key" 应该是 "key"）
+            json_str = re.sub(r'\\"([^"]+)\\"\s*:', r'"\1":', json_str)
+            
+            # 修复字符串值中的未转义引号
             lines = json_str.split('\n')
             fixed_lines = []
             
             for line in lines:
-                # 如果行包含字符串值，修复其中的未转义引号
+                # 处理键值对行
                 if ':' in line and '"' in line:
-                    # 查找键值对模式
+                    # 匹配键值对模式："key": "value"
                     match = re.match(r'^(\s*"[^"]+"\s*:\s*)"(.*)"(\s*,?\s*)$', line)
                     if match:
                         prefix, content, suffix = match.groups()
-                        # 转义内容中的引号
+                        # 只转义内容中的未转义引号
+                        # 先处理已经转义的引号，避免重复转义
+                        content = content.replace('\\"', '___ESCAPED_QUOTE___')
                         content = content.replace('"', '\\"')
+                        content = content.replace('___ESCAPED_QUOTE___', '\\"')
                         line = f'{prefix}"{content}"{suffix}'
                 fixed_lines.append(line)
             
