@@ -669,8 +669,14 @@ class CreatorScoreCalculator:
                     }
                 })
 
+        # 生成视频打分说明信息
+        video_scoring_summary = self._generate_video_scoring_summary(
+            video_details, ai_quality_scores, creator_score.video_count
+        )
+        
         breakdown = {
             "视频数量": creator_score.video_count,
+            "视频打分说明": video_scoring_summary,
             "账户质量评分": {
                 "原始数据": {
                     "粉丝数量": f"{user_profile.follower_count:,}" if user_profile else "N/A",
@@ -707,6 +713,86 @@ class CreatorScoreCalculator:
         }
         
         return breakdown
+    
+    def _generate_video_scoring_summary(self, video_details: List[VideoDetail], ai_quality_scores: Dict[str, QualityScore], total_video_count: int) -> Dict[str, Any]:
+        """生成视频打分说明信息
+        
+        Args:
+            video_details: 视频详情列表
+            ai_quality_scores: AI质量评分字典
+            total_video_count: 总视频数量
+            
+        Returns:
+            视频打分说明信息字典
+        """
+        if not video_details:
+            return {
+                "总体状态": "无视频数据",
+                "详细说明": "未获取到任何视频数据，可能原因：用户无公开视频、API调用失败或网络问题",
+                "统计信息": {
+                    "获取视频数": 0,
+                    "AI评分视频数": 0,
+                    "匹配关键词视频数": 0,
+                    "评分失败视频数": 0
+                }
+            }
+        
+        # 统计各种情况的视频数量
+        total_videos = len(video_details)
+        ai_scored_videos = len(ai_quality_scores) if ai_quality_scores else 0
+        
+        # 统计AI评分情况
+        ai_success_count = 0
+        ai_zero_score_count = 0
+        ai_failed_count = 0
+        keyword_matched_count = 0
+        
+        if ai_quality_scores:
+            for video in video_details:
+                if video.video_id in ai_quality_scores:
+                    ai_score = ai_quality_scores[video.video_id]
+                    if ai_score.total_score > 0:
+                        ai_success_count += 1
+                    elif ai_score.zero_score_reason:
+                        ai_zero_score_count += 1
+                    else:
+                        ai_failed_count += 1
+                    
+                    # 检查是否匹配关键词（通过reasoning判断）
+                    if ai_score.reasoning and ("关键词" in ai_score.reasoning or "匹配" in ai_score.reasoning):
+                        keyword_matched_count += 1
+        
+        # 生成总体状态描述
+        if ai_scored_videos == 0:
+            status = "仅互动数据评分"
+            description = f"获取到{total_videos}个视频的互动数据，未进行AI质量评分（可能未设置关键词筛选）"
+        elif ai_success_count == 0 and ai_zero_score_count == 0:
+            status = "AI评分全部失败"
+            description = f"获取到{total_videos}个视频，AI评分服务调用失败，仅使用互动数据评分"
+        elif ai_success_count == 0:
+            status = "AI评分全部为0"
+            description = f"获取到{total_videos}个视频，AI评分均为0分（未匹配关键词或内容质量较低）"
+        else:
+            status = "正常评分"
+            description = f"获取到{total_videos}个视频，其中{ai_success_count}个获得AI质量评分"
+        
+        return {
+            "总体状态": status,
+            "详细说明": description,
+            "统计信息": {
+                "获取视频数": total_videos,
+                "AI评分视频数": ai_scored_videos,
+                "AI评分成功数": ai_success_count,
+                "AI评分为0数": ai_zero_score_count,
+                "AI评分失败数": ai_failed_count,
+                "疑似匹配关键词数": keyword_matched_count
+            },
+            "评分说明": {
+                "互动评分": "所有视频均基于播放量、点赞数、评论数、分享数、保存数计算互动评分",
+                "AI质量评分": "仅对匹配关键词或项目方的视频进行AI内容质量评分" if ai_scored_videos > 0 else "未进行AI质量评分",
+                "最终评分": "视频最终评分 = 互动评分×65% + AI质量评分×35%（无AI评分时仅使用互动评分）"
+            }
+        }
     
     def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None, project_name: str = None) -> tuple[CreatorScore, Dict[str, QualityScore], List[VideoDetail], UserProfile]:
         """通过用户ID计算创作者评分并返回AI质量评分（用于Web界面）

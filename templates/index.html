@@ -564,6 +564,41 @@
                                 ` : ''}
                             </div>
                             
+                            <!-- 视频打分说明 -->
+                            ${breakdown.视频打分说明 ? `
+                                <div class="breakdown-section">
+                                    <h5>📋 视频打分说明</h5>
+                                    <div style="padding: 15px; background-color: ${breakdown.视频打分说明.总体状态 === '正常评分' ? '#e8f5e8' : breakdown.视频打分说明.总体状态.includes('失败') || breakdown.视频打分说明.总体状态.includes('为0') ? '#fff3cd' : '#e2e3e5'}; border-radius: 8px; border-left: 4px solid ${breakdown.视频打分说明.总体状态 === '正常评分' ? '#28a745' : breakdown.视频打分说明.总体状态.includes('失败') || breakdown.视频打分说明.总体状态.includes('为0') ? '#ffc107' : '#6c757d'}; margin-bottom: 20px;">
+                                        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                            <span style="font-size: 18px; margin-right: 8px;">${breakdown.视频打分说明.总体状态 === '正常评分' ? '✅' : breakdown.视频打分说明.总体状态.includes('失败') ? '❌' : breakdown.视频打分说明.总体状态.includes('为0') ? '⚠️' : 'ℹ️'}</span>
+                                            <strong style="color: ${breakdown.视频打分说明.总体状态 === '正常评分' ? '#155724' : breakdown.视频打分说明.总体状态.includes('失败') ? '#856404' : '#383d41'}; font-size: 16px;">${breakdown.视频打分说明.总体状态}</strong>
+                                        </div>
+                                        
+                                        <div style="color: #495057; margin-bottom: 15px; line-height: 1.5;">
+                                            ${breakdown.视频打分说明.详细说明}
+                                        </div>
+                                        
+                                        <!-- 统计信息 -->
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                                            ${Object.entries(breakdown.视频打分说明.统计信息).map(([key, value]) => `
+                                                <div style="background: rgba(255,255,255,0.7); padding: 8px; border-radius: 4px; text-align: center;">
+                                                    <div style="font-size: 12px; color: #666; margin-bottom: 2px;">${key}</div>
+                                                    <div style="font-weight: bold; color: #333;">${value}</div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                        
+                                        <!-- 评分说明 -->
+                                        <div style="background: rgba(255,255,255,0.5); padding: 12px; border-radius: 6px;">
+                                            <div style="font-weight: bold; color: #495057; margin-bottom: 8px;">📝 评分规则说明：</div>
+                                            ${Object.entries(breakdown.视频打分说明.评分说明).map(([key, value]) => `
+                                                <div style="font-size: 13px; color: #6c757d; margin-bottom: 4px;">• <strong>${key}:</strong> ${value}</div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
                             <div class="breakdown-section">
                                 <h5>📹 各视频详细评分</h5>
                                 ${breakdown.individual_videos && breakdown.individual_videos.length > 0 ? 
