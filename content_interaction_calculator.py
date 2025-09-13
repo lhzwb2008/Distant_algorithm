@@ -288,9 +288,9 @@ class ContentInteractionCalculator:
         """
         # 计算各项得分
         view_score = self.calculate_view_score(video.view_count, follower_count)
-        like_score = self.calculate_like_score(video.like_count, video.view_count)
-        comment_score = self.calculate_comment_score(video.comment_count, video.view_count)
-        share_score = self.calculate_share_score(video.share_count, video.view_count)
+        like_score = self.calculate_like_score(video.like_count, video.view_count, follower_count)
+        comment_score = self.calculate_comment_score(video.comment_count, video.view_count, follower_count)
+        share_score = self.calculate_share_score(video.share_count, video.view_count, follower_count)
         
         # 权重计算总分
         total_score = (

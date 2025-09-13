@@ -80,13 +80,15 @@ class Config:
         'posting_frequency': 0.20 # 发布频率权重
     }
     
-    # 内容互动评分权重
-    CONTENT_INTERACTION_WEIGHTS = {
-        'views': 0.10,      # 播放量权重
-        'likes': 0.25,      # 点赞数权重
-        'comments': 0.30,   # 评论数权重
-        'shares': 0.35      # 分享数权重
-    }
+    # 内容互动权重（已弃用，现在硬编码在creator_score_calculator.py中）
+    # 当前权重：播放量10%, 点赞15%, 评论30%, 分享30%, 保存15%
+    # CONTENT_INTERACTION_WEIGHTS = {
+    #     'views': 0.10,      # 播放量权重
+    #     'likes': 0.15,      # 点赞数权重  
+    #     'comments': 0.30,   # 评论数权重
+    #     'shares': 0.30,     # 分享数权重
+    #     'saves': 0.15       # 保存数权重
+    # }
     
     # 账户质量加权系数
     ACCOUNT_QUALITY_MULTIPLIERS = {
@@ -242,12 +244,8 @@ class Config:
                 f'Account quality weights sum to {account_weight_sum}, should be 1.0'
             )
         
-        content_weight_sum = sum(cls.CONTENT_INTERACTION_WEIGHTS.values())
-        if abs(content_weight_sum - 1.0) > 0.001:
-            validation_result['valid'] = False
-            validation_result['errors'].append(
-                f'Content interaction weights sum to {content_weight_sum}, should be 1.0'
-            )
+        # 内容互动权重验证已移除，因为权重现在硬编码在代码中
+        # 当前硬编码权重：播放量10% + 点赞15% + 评论30% + 分享30% + 保存15% = 100%
         
         main_weight_sum = cls.CONTENT_QUALITY_WEIGHT + cls.CONTENT_INTERACTION_WEIGHT
         if abs(main_weight_sum - 1.0) > 0.001:
@@ -294,7 +292,7 @@ class Config:
                 'content_interaction': cls.CONTENT_INTERACTION_WEIGHT
             },
             'account_quality_weights': cls.ACCOUNT_QUALITY_WEIGHTS,
-            'content_interaction_weights': cls.CONTENT_INTERACTION_WEIGHTS,
+            # 'content_interaction_weights': 硬编码权重已移除，见creator_score_calculator.py
             'cache_enabled': cls.CACHE_CONFIG['enable_cache'],
             'log_level': cls.LOG_LEVEL
         }
