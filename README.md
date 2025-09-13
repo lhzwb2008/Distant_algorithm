@@ -191,7 +191,7 @@ cp .env.example .env
 ```env
 # TiKhub API配置
 TIKHUB_API_KEY=your_api_key_here
-TIKHUB_BASE_URL=https://api.tikhub.dev
+TIKHUB_BASE_URL=https://api.tikhub.io
 
 # OpenRouter API配置（用于字幕模式的AI视频质量评分）
 OPENROUTER_API_KEY=your_openrouter_api_key_here

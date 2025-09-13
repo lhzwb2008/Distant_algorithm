@@ -564,6 +564,60 @@
                                 ` : ''}
                             </div>
                             
+                            <!-- 视频打分说明框 -->
+                            <div class="breakdown-section">
+                                <h5>📊 视频打分说明</h5>
+                                <div style="padding: 15px; background-color: #f0f8ff; border-radius: 8px; border-left: 4px solid #4CAF50; margin-bottom: 20px;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; font-size: 14px;">
+                                        <!-- 视频匹配情况 -->
+                                        <div style="padding: 10px; background-color: #e8f5e8; border-radius: 6px; border: 1px solid #c8e6c9;">
+                                            <div style="font-weight: bold; color: #2e7d32; margin-bottom: 8px;">🎯 视频匹配情况</div>
+                                            <div style="font-size: 13px; line-height: 1.5;">
+                                                <div><strong>总视频数:</strong> ${breakdown.各视频详细评分.length} 个</div>
+                                                <div><strong>匹配视频:</strong> ${breakdown.各视频详细评分.filter(v => v.视频总分.总分 > 0).length} 个</div>
+                                                <div><strong>0分视频:</strong> ${breakdown.各视频详细评分.filter(v => v.视频总分.总分 === 0).length} 个</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- AI打分状态 -->
+                                        <div style="padding: 10px; background-color: #e3f2fd; border-radius: 6px; border: 1px solid #bbdefb;">
+                                            <div style="font-weight: bold; color: #1976d2; margin-bottom: 8px;">🤖 AI打分状态</div>
+                                            <div style="font-size: 13px; line-height: 1.5;">
+                                                <div><strong>AI评分成功:</strong> ${breakdown.各视频详细评分.filter(v => v.AI质量评分 && v.AI质量评分.评分 > 0).length} 个</div>
+                                                <div><strong>AI评分失败:</strong> ${breakdown.各视频详细评分.filter(v => !v.AI质量评分 || v.AI质量评分.评分 === 0).length} 个</div>
+                                                <div><strong>使用字幕分析:</strong> ${breakdown.各视频详细评分.filter(v => v.AI质量评分 && v.AI质量评分.评分理由 && v.AI质量评分.评分理由.includes('字幕')).length} 个</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 关键词匹配 -->
+                                        <div style="padding: 10px; background-color: #fff3e0; border-radius: 6px; border: 1px solid #ffcc02;">
+                                            <div style="font-weight: bold; color: #f57c00; margin-bottom: 8px;">🔍 关键词匹配</div>
+                                            <div style="font-size: 13px; line-height: 1.5;">
+                                                <div><strong>筛选关键词:</strong> ${data.keyword || '无筛选'}</div>
+                                                <div><strong>高相关性:</strong> ${breakdown.各视频详细评分.filter(v => v.AI质量评分 && v.AI质量评分.评分 >= 60).length} 个</div>
+                                                <div><strong>中等相关性:</strong> ${breakdown.各视频详细评分.filter(v => v.AI质量评分 && v.AI质量评分.评分 >= 30 && v.AI质量评分.评分 < 60).length} 个</div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- 评分异常说明 -->
+                                        <div style="padding: 10px; background-color: #fce4ec; border-radius: 6px; border: 1px solid #f8bbd9;">
+                                            <div style="font-weight: bold; color: #c2185b; margin-bottom: 8px;">⚠️ 异常说明</div>
+                                            <div style="font-size: 13px; line-height: 1.5;">
+                                                ${breakdown.各视频详细评分.filter(v => v.视频总分.总分 === 0).length > 0 ? 
+                                                    `<div style="color: #d32f2f;">• ${breakdown.各视频详细评分.filter(v => v.视频总分.总分 === 0).length} 个视频评分为0分</div>` : 
+                                                    '<div style="color: #388e3c;">• 所有视频评分正常</div>'
+                                                }
+                                                ${breakdown.各视频详细评分.filter(v => !v.AI质量评分 || v.AI质量评分.评分 === 0).length > 0 ? 
+                                                    `<div style="color: #ff9800;">• ${breakdown.各视频详细评分.filter(v => !v.AI质量评分 || v.AI质量评分.评分 === 0).length} 个视频AI分析失败</div>` : 
+                                                    '<div style="color: #388e3c;">• AI分析全部成功</div>'
+                                                }
+                                                <div style="color: #666; font-style: italic; margin-top: 4px;">详细原因请查看下方各视频评分</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="breakdown-section">
                                 <h5>📹 各视频详细评分</h5>
                                 ${breakdown.各视频详细评分.length > 0 ? 
