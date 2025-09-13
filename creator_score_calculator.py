@@ -319,8 +319,7 @@ class CreatorScoreCalculator:
                 n = len(video_scores)
                 peak_performance = max(video_scores)
                 recent_videos_count = min(3, n)
-                recent_start_index = max(0, n - recent_videos_count)
-                recent_scores = video_scores[recent_start_index:]
+                recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
                 recent_performance = sum(recent_scores) / len(recent_scores)
                 overall_performance = sum(video_scores) / n
                 
@@ -800,8 +799,7 @@ class CreatorScoreCalculator:
                 n = len(video_scores)
                 peak_performance = max(video_scores)
                 recent_videos_count = min(3, n)
-                recent_start_index = max(0, n - recent_videos_count)
-                recent_scores = video_scores[recent_start_index:]
+                recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
                 recent_performance = sum(recent_scores) / len(recent_scores)
                 overall_performance = sum(video_scores) / n
                 
