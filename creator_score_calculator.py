@@ -869,9 +869,11 @@ class CreatorScoreCalculator:
                     # 所有视频都链接无效，使用默认分数
                     base_score = self.content_quality_score * self.content_quality_weight
                     peak_performance = recent_performance = overall_performance = 0.0
+                    recent_valid_scores = []  # 无有效视频时设为空列表
             else:
                 base_score = self.content_quality_score * self.content_quality_weight
                 peak_performance = recent_performance = overall_performance = 0.0
+                recent_valid_scores = []  # 无视频数据时设为空列表
             
             print(f"📊 最终评分计算详情:")
             if content_interaction_videos:
