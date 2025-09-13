@@ -727,13 +727,13 @@ class CreatorScoreCalculator:
         """
         if not video_details:
             return {
-                "总体状态": "无视频数据",
-                "详细说明": "未获取到任何视频数据，可能原因：用户无公开视频、API调用失败或网络问题",
-                "统计信息": {
-                    "获取视频数": 0,
-                    "AI评分视频数": 0,
-                    "匹配关键词视频数": 0,
-                    "评分失败视频数": 0
+                "overall_status": "无视频数据",
+                "detailed_description": "未获取到任何视频数据，可能原因：用户无公开视频、API调用失败或网络问题",
+                "statistics": {
+                    "total_videos": 0,
+                    "ai_scored_videos": 0,
+                    "keyword_matched_videos": 0,
+                    "scoring_failed_videos": 0
                 }
             }
         
@@ -777,20 +777,20 @@ class CreatorScoreCalculator:
             description = f"获取到{total_videos}个视频，其中{ai_success_count}个获得AI质量评分"
         
         return {
-            "总体状态": status,
-            "详细说明": description,
-            "统计信息": {
-                "获取视频数": total_videos,
-                "AI评分视频数": ai_scored_videos,
-                "AI评分成功数": ai_success_count,
-                "AI评分为0数": ai_zero_score_count,
-                "AI评分失败数": ai_failed_count,
-                "疑似匹配关键词数": keyword_matched_count
+            "overall_status": status,
+            "detailed_description": description,
+            "statistics": {
+                "total_videos": total_videos,
+                "ai_scored_videos": ai_scored_videos,
+                "ai_success_count": ai_success_count,
+                "ai_zero_score_count": ai_zero_score_count,
+                "ai_failed_count": ai_failed_count,
+                "keyword_matched_count": keyword_matched_count
             },
-            "评分说明": {
-                "互动评分": "所有视频均基于播放量、点赞数、评论数、分享数、保存数计算互动评分",
-                "AI质量评分": "仅对匹配关键词或项目方的视频进行AI内容质量评分" if ai_scored_videos > 0 else "未进行AI质量评分",
-                "最终评分": "视频最终评分 = 互动评分×65% + AI质量评分×35%（无AI评分时仅使用互动评分）"
+            "scoring_explanation": {
+                "interaction_scoring": "所有视频均基于播放量、点赞数、评论数、分享数、保存数计算互动评分",
+                "ai_quality_scoring": "仅对匹配关键词或项目方的视频进行AI内容质量评分" if ai_scored_videos > 0 else "未进行AI质量评分",
+                "final_scoring": "视频最终评分 = 互动评分×65% + AI质量评分×35%（无AI评分时仅使用互动评分）"
             }
         }
     
