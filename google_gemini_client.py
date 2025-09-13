@@ -604,14 +604,24 @@ class GoogleGeminiClient:
             json_str = re.sub(r',\s*}', '}', json_str)
             json_str = re.sub(r',\s*]', ']', json_str)
             
-            # 修复字符串中的换行符和特殊字符
-            # 将字符串值中的换行符转义
-            json_str = re.sub(r'"([^"]*?)\n([^"]*?)"', r'"\1\\n\2"', json_str)
-            # 修复字符串中未转义的引号
-            json_str = re.sub(r'"([^"]*?)"([^":,}\]\s])([^"]*?)"', r'"\1\\"\2\3"', json_str)
+            # 修复字符串值中的未转义引号（更安全的方式）
+            # 先标记所有正确的字符串边界
+            lines = json_str.split('\n')
+            fixed_lines = []
             
-            # 修复单引号为双引号（只处理键名和简单字符串值）
-            json_str = re.sub(r"(?<!\\)'([^'\n]*?)(?<!\\)'", r'"\1"', json_str)
+            for line in lines:
+                # 如果行包含字符串值，修复其中的未转义引号
+                if ':' in line and '"' in line:
+                    # 查找键值对模式
+                    match = re.match(r'^(\s*"[^"]+"\s*:\s*)"(.*)"(\s*,?\s*)$', line)
+                    if match:
+                        prefix, content, suffix = match.groups()
+                        # 转义内容中的引号
+                        content = content.replace('"', '\\"')
+                        line = f'{prefix}"{content}"{suffix}'
+                fixed_lines.append(line)
+            
+            json_str = '\n'.join(fixed_lines)
             
             # 修复未引用的键名（只处理未被引号包围的键名）
             json_str = re.sub(r'(?<!")\b(\w+)\b(?!")\s*:', r'"\1":', json_str)
