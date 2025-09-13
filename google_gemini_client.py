@@ -604,11 +604,17 @@ class GoogleGeminiClient:
             json_str = re.sub(r',\s*}', '}', json_str)
             json_str = re.sub(r',\s*]', ']', json_str)
             
-            # 修复单引号为双引号
-            json_str = re.sub(r"(?<!\\)'([^']*?)(?<!\\)'", r'"\1"', json_str)
+            # 修复字符串中的换行符和特殊字符
+            # 将字符串值中的换行符转义
+            json_str = re.sub(r'"([^"]*?)\n([^"]*?)"', r'"\1\\n\2"', json_str)
+            # 修复字符串中未转义的引号
+            json_str = re.sub(r'"([^"]*?)"([^":,}\]\s])([^"]*?)"', r'"\1\\"\2\3"', json_str)
             
-            # 修复未引用的键名
-            json_str = re.sub(r'(\w+)\s*:', r'"\1":', json_str)
+            # 修复单引号为双引号（只处理键名和简单字符串值）
+            json_str = re.sub(r"(?<!\\)'([^'\n]*?)(?<!\\)'", r'"\1"', json_str)
+            
+            # 修复未引用的键名（只处理未被引号包围的键名）
+            json_str = re.sub(r'(?<!")\b(\w+)\b(?!")\s*:', r'"\1":', json_str)
             
             return json_str
         except Exception as e:
