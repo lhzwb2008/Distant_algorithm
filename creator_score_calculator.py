@@ -311,36 +311,59 @@ class CreatorScoreCalculator:
             
             # 计算基础分数用于显示（使用新算法）
             if content_interaction_videos:
-                video_scores = []
+                all_video_scores = []
                 for video in content_interaction_videos:
                     video_score = self._calculate_single_video_score_with_ai(video, user_profile.follower_count, ai_quality_scores)
-                    video_scores.append(video_score)
+                    all_video_scores.append(video_score)
                 
-                n = len(video_scores)
-                peak_performance = max(video_scores)
-                recent_videos_count = min(3, n)
-                recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
-                recent_performance = sum(recent_scores) / len(recent_scores)
-                overall_performance = sum(video_scores) / n
+                # 过滤掉视频链接无效的视频（-1.0标识）
+                valid_video_scores = [score for score in all_video_scores if score >= 0.0]
                 
-                base_score = (
-                    0.4 * peak_performance +      # 40%看峰值表现
-                    0.4 * recent_performance +    # 40%看近期状态
-                    0.2 * overall_performance     # 20%看整体水平
-                )
+                if valid_video_scores:
+                    n = len(valid_video_scores)
+                    peak_performance = max(valid_video_scores)
+                    
+                    # 从原始顺序中找到最近的有效视频
+                    recent_valid_scores = []
+                    for score in all_video_scores:
+                        if score >= 0.0:
+                            recent_valid_scores.append(score)
+                            if len(recent_valid_scores) >= 3:
+                                break
+                    recent_performance = sum(recent_valid_scores) / len(recent_valid_scores)
+                    overall_performance = sum(valid_video_scores) / n
+                    
+                    base_score = (
+                        0.4 * peak_performance +      # 40%看峰值表现
+                        0.4 * recent_performance +    # 40%看近期状态
+                        0.2 * overall_performance     # 20%看整体水平
+                    )
+                else:
+                    # 所有视频都链接无效，使用默认分数
+                    base_score = self.content_quality_score * self.content_quality_weight
+                    peak_performance = recent_performance = overall_performance = 0.0
             else:
                 base_score = self.content_quality_score * self.content_quality_weight
             
             print(f"📊 最终评分计算详情:")
             if content_interaction_videos:
-                print(f"   • 视频总数: {len(content_interaction_videos)} 个")
-                print(f"   • 峰值表现: {peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}")
-                print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_scores)}条视频)")
-                print(f"   • 整体水平: {overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有视频)")
-                print(f"   • 基础分数: {base_score:.2f}")
-                print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
-                if ai_quality_scores:
-                    print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分AI智能评分")
+                if valid_video_scores:
+                    invalid_count = len(all_video_scores) - len(valid_video_scores)
+                    print(f"   • 视频总数: {len(content_interaction_videos)} 个 (有效: {len(valid_video_scores)} 个, 链接无效: {invalid_count} 个)")
+                    print(f"   • 峰值表现: {peak_performance:.2f} × 40% = {peak_performance * 0.4:.2f}")
+                    print(f"   • 近期状态: {recent_performance:.2f} × 40% = {recent_performance * 0.4:.2f} (最近{len(recent_valid_scores)}条有效视频)")
+                    print(f"   • 整体水平: {overall_performance:.2f} × 20% = {overall_performance * 0.2:.2f} (所有有效视频)")
+                    print(f"   • 基础分数: {base_score:.2f}")
+                    print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
+                    if ai_quality_scores:
+                        print(f"   • AI质量评分影响: {len(ai_quality_scores)}个视频使用AI评分AI智能评分")
+                    if invalid_count > 0:
+                        print(f"   ⚠️ 注意: {invalid_count}个视频因链接无效未参与评分计算")
+                else:
+                    print(f"   • 视频总数: {len(content_interaction_videos)} 个 (全部链接无效)")
+                    print(f"   • 使用默认内容质量分数: {self.content_quality_score:.2f}")
+                    print(f"   • 基础分数: {base_score:.2f}")
+                    print(f"   • 账户质量加权: {base_score:.2f} × {account_quality.multiplier:.3f} = {final_score:.2f}")
             else:
                 print(f"   • 无视频数据，使用默认内容质量分数: {self.content_quality_score:.2f}")
                 print(f"   • 基础分数: {base_score:.2f}")
@@ -442,12 +465,23 @@ class CreatorScoreCalculator:
         
         # 获取内容质量分：优先使用AI评分，否则使用默认值
         if video.video_id in ai_quality_scores:
-            content_quality_score = ai_quality_scores[video.video_id].total_score
+            ai_score = ai_quality_scores[video.video_id]
+            content_quality_score = ai_score.total_score
             
-            # 重要逻辑：如果AI评分为0分（视频内容与筛选条件不相关），直接返回0分
-            # 不再计算互动分数，因为这个视频完全不符合筛选要求
+            # 重要逻辑：如果AI评分为0分，需要区分两种情况
             if content_quality_score == 0.0:
-                return 0.0
+                # 检查是否是视频链接无效导致的0分
+                if ai_score.reasoning and ("视频链接无效" in ai_score.reasoning or 
+                                         "无法获取视频内容" in ai_score.reasoning or
+                                         "视频没有字幕数据" in ai_score.reasoning or
+                                         "字幕质量评分失败" in ai_score.reasoning or
+                                         "Gemini视频分析失败" in ai_score.reasoning or
+                                         "Gemini视频分析异常" in ai_score.reasoning):
+                    # 视频链接无效，返回-1标识，不参与总分计算
+                    return -1.0
+                else:
+                    # 视频内容与筛选条件不相关，返回0分
+                    return 0.0
                 
         else:
             # 重要逻辑：如果没有AI评分数据，说明视频不符合筛选条件，直接返回0分
@@ -495,24 +529,37 @@ class CreatorScoreCalculator:
         sorted_videos = sorted(video_details, key=lambda v: v.create_time if v.create_time else datetime.min, reverse=True)
         
         # 计算每个视频的评分（集成AI质量评分，按时间顺序）
-        video_scores = []
+        all_video_scores = []
         for video in sorted_videos:
             video_score = self._calculate_single_video_score_with_ai(video, follower_count, ai_quality_scores)
-            video_scores.append(video_score)
+            all_video_scores.append(video_score)
         
-        # 应用新的三维评分算法
-        n = len(video_scores)
+        # 过滤掉视频链接无效的视频（-1.0标识），只保留有效视频进行评分计算
+        valid_video_scores = [score for score in all_video_scores if score >= 0.0]
+        
+        # 如果没有有效视频，使用默认分数
+        if not valid_video_scores:
+            base_score = self.content_quality_score * self.content_quality_weight
+            return base_score * account_quality.multiplier
+        
+        # 应用新的三维评分算法（只使用有效视频）
+        n = len(valid_video_scores)
         
         # 1. 峰值表现：取最高分
-        peak_performance = max(video_scores)
+        peak_performance = max(valid_video_scores)
         
-        # 2. 近期状态：最近3个视频的平均分（现在是按时间最新的3个）
-        recent_videos_count = min(3, n)
-        recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
-        recent_performance = sum(recent_scores) / len(recent_scores)
+        # 2. 近期状态：最近3个有效视频的平均分
+        # 需要从原始顺序中找到最近的有效视频
+        recent_valid_scores = []
+        for score in all_video_scores:
+            if score >= 0.0:
+                recent_valid_scores.append(score)
+                if len(recent_valid_scores) >= 3:
+                    break
+        recent_performance = sum(recent_valid_scores) / len(recent_valid_scores)
         
-        # 3. 整体水平：所有视频的平均分
-        overall_performance = sum(video_scores) / n
+        # 3. 整体水平：所有有效视频的平均分
+        overall_performance = sum(valid_video_scores) / n
         
         # 综合评分：40%峰值 + 40%近期 + 20%整体
         base_score = (
@@ -791,23 +838,37 @@ class CreatorScoreCalculator:
             
             # 计算基础分数用于显示（使用新算法）
             if content_interaction_videos:
-                video_scores = []
+                all_video_scores = []
                 for video in content_interaction_videos:
                     video_score = self._calculate_single_video_score_with_ai(video, user_profile.follower_count, ai_quality_scores)
-                    video_scores.append(video_score)
+                    all_video_scores.append(video_score)
                 
-                n = len(video_scores)
-                peak_performance = max(video_scores)
-                recent_videos_count = min(3, n)
-                recent_scores = video_scores[:recent_videos_count]  # 取前3个（最新的）
-                recent_performance = sum(recent_scores) / len(recent_scores)
-                overall_performance = sum(video_scores) / n
+                # 过滤掉视频链接无效的视频（-1.0标识）
+                valid_video_scores = [score for score in all_video_scores if score >= 0.0]
                 
-                base_score = (
-                    0.4 * peak_performance +   # 40%看峰值表现
-                    0.4 * recent_performance + # 40%看近期状态
-                    0.2 * overall_performance     # 20%看整体水平
-                )
+                if valid_video_scores:
+                    n = len(valid_video_scores)
+                    peak_performance = max(valid_video_scores)
+                    
+                    # 从原始顺序中找到最近的有效视频
+                    recent_valid_scores = []
+                    for score in all_video_scores:
+                        if score >= 0.0:
+                            recent_valid_scores.append(score)
+                            if len(recent_valid_scores) >= 3:
+                                break
+                    recent_performance = sum(recent_valid_scores) / len(recent_valid_scores)
+                    overall_performance = sum(valid_video_scores) / n
+                    
+                    base_score = (
+                        0.4 * peak_performance +   # 40%看峰值表现
+                        0.4 * recent_performance + # 40%看近期状态
+                        0.2 * overall_performance     # 20%看整体水平
+                    )
+                else:
+                    # 所有视频都链接无效，使用默认分数
+                    base_score = self.content_quality_score * self.content_quality_weight
+                    peak_performance = recent_performance = overall_performance = 0.0
             else:
                 base_score = self.content_quality_score * self.content_quality_weight
                 peak_performance = recent_performance = overall_performance = 0.0

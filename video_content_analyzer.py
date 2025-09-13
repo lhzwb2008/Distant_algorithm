@@ -83,7 +83,10 @@ class VideoContentAnalyzer:
                     quality_score = future.result()
                     if quality_score:
                         results[video.video_id] = quality_score
-                        logger.info(f"✅ 视频 {video.video_id} 字幕分析完成 ({completed_count}/{total_videos}) - 总分: {quality_score.total_score:.1f}")
+                        if quality_score.total_score > 0:
+                            logger.info(f"✅ 视频 {video.video_id} 字幕分析完成 ({completed_count}/{total_videos}) - 总分: {quality_score.total_score:.1f}")
+                        else:
+                            logger.warning(f"⚠️ 视频 {video.video_id} 字幕分析完成但评分为0 ({completed_count}/{total_videos}) - 原因: {quality_score.reasoning}")
                     else:
                         logger.warning(f"❌ 视频 {video.video_id} 字幕分析失败 ({completed_count}/{total_videos})")
                         
@@ -124,7 +127,10 @@ class VideoContentAnalyzer:
                     quality_score = future.result()
                     if quality_score:
                         results[video.video_id] = quality_score
-                        logger.info(f"✅ 视频 {video.video_id} Gemini分析完成 ({completed_count}/{total_videos}) - 总分: {quality_score.total_score:.1f}")
+                        if quality_score.total_score > 0:
+                            logger.info(f"✅ 视频 {video.video_id} Gemini分析完成 ({completed_count}/{total_videos}) - 总分: {quality_score.total_score:.1f}")
+                        else:
+                            logger.warning(f"⚠️ 视频 {video.video_id} Gemini分析完成但评分为0 ({completed_count}/{total_videos}) - 原因: {quality_score.reasoning}")
                     else:
                         logger.warning(f"❌ 视频 {video.video_id} Gemini分析失败 ({completed_count}/{total_videos})")
                         
@@ -140,7 +146,15 @@ class VideoContentAnalyzer:
         """使用字幕分析单个视频"""
         if not video.subtitle or not video.subtitle.full_text:
             logger.warning(f"视频 {video.video_id} 没有字幕，无法进行质量评分")
-            return None
+            return QualityScore(
+                keyword_score=0,
+                originality_score=0,
+                clarity_score=0,
+                spam_score=0,
+                promotion_score=0,
+                total_score=0,
+                reasoning="视频没有字幕数据，无法进行AI质量评分"
+            )
         
         try:
             quality_score = self.openrouter_client.evaluate_video_quality(
@@ -151,7 +165,15 @@ class VideoContentAnalyzer:
             
         except Exception as e:
             logger.error(f"视频 {video.video_id} 字幕质量评分失败: {e}")
-            return None
+            return QualityScore(
+                keyword_score=0,
+                originality_score=0,
+                clarity_score=0,
+                spam_score=0,
+                promotion_score=0,
+                total_score=0,
+                reasoning=f"字幕质量评分失败: {str(e)}"
+            )
     
     def _analyze_single_video_with_gemini(self, video: VideoDetail, keyword: str = None, project_name: str = None) -> Optional[QualityScore]:
         """使用Google Gemini分析单个视频"""
@@ -163,7 +185,15 @@ class VideoContentAnalyzer:
             video_url = self._get_video_download_url(video.video_id)
             if not video_url:
                 logger.error(f"无法获取视频 {video.video_id} 的下载URL")
-                return None
+                return QualityScore(
+                    keyword_score=0,
+                    originality_score=0,
+                    clarity_score=0,
+                    spam_score=0,
+                    promotion_score=0,
+                    total_score=0,
+                    reasoning="视频链接无效或已失效，无法获取视频内容进行AI分析"
+                )
             
             # 使用Gemini分析视频（不传入desc字段，完全基于视频内容）
             analysis_result = self.google_client.analyze_video_from_url(
@@ -174,7 +204,15 @@ class VideoContentAnalyzer:
             )
             
             if not analysis_result:
-                return None
+                return QualityScore(
+                    keyword_score=0,
+                    originality_score=0,
+                    clarity_score=0,
+                    spam_score=0,
+                    promotion_score=0,
+                    total_score=0,
+                    reasoning="Gemini视频分析失败，可能是视频格式不支持或内容无法识别"
+                )
             
             # 转换为QualityScore格式
             quality_score = self._convert_gemini_result_to_quality_score(analysis_result)
@@ -182,7 +220,15 @@ class VideoContentAnalyzer:
             
         except Exception as e:
             logger.error(f"视频 {video.video_id} Gemini分析失败: {e}")
-            return None
+            return QualityScore(
+                keyword_score=0,
+                originality_score=0,
+                clarity_score=0,
+                spam_score=0,
+                promotion_score=0,
+                total_score=0,
+                reasoning=f"Gemini视频分析异常: {str(e)}"
+            )
     
     def _get_video_download_url(self, video_id: str) -> Optional[str]:
         """获取视频下载URL，优先选择 lowest_540_1 清晰度"""
@@ -195,7 +241,7 @@ class VideoContentAnalyzer:
             logger.info(f"🔍 视频 {video_id} API响应键: {list(data.keys()) if data else 'None'}")
             
             if not data:
-                logger.error(f"获取视频 {video_id} 详情失败：API响应为空")
+                logger.error(f"获取视频 {video_id} 详情失败：API响应为空，可能是网络问题或视频已被删除")
                 return None
             
             # 检查不同可能的响应格式
