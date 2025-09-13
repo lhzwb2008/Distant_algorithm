@@ -650,8 +650,8 @@ class CreatorScoreCalculator:
                         "评分理由": ai_quality_scores[video.video_id].reasoning if ai_quality_scores and video.video_id in ai_quality_scores else "无AI评分"
                     },
                     "视频总分": {
-                        "总分": f"{video_total_score:.2f}",
-                        "计算公式": self._generate_score_formula_explanation(interaction_total, ai_score, video_total_score)
+                        "总分": "链接无效" if video_total_score == -1.0 else f"{video_total_score:.2f}",
+                        "计算公式": "视频链接无效或已失效，无法计算评分" if video_total_score == -1.0 else self._generate_score_formula_explanation(interaction_total, ai_score, video_total_score)
                     }
                 })
 
