@@ -903,7 +903,7 @@ class CreatorScoreCalculator:
                 peak_performance=peak_performance if content_interaction_videos else 0.0,
                 recent_performance=recent_performance if content_interaction_videos else 0.0,
                 overall_performance=overall_performance if content_interaction_videos else 0.0,
-                video_scores=video_scores if content_interaction_videos else []
+                video_scores=all_video_scores if content_interaction_videos else []
             )
             
             return creator_score, ai_quality_scores, content_interaction_videos, user_profile
