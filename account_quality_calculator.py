@@ -101,7 +101,9 @@ class AccountQualityCalculator:
         valid_videos = []
         invalid_time_videos = []
         
-        logger.info(f"发布频率计算开始（基于三个月数据，共{len(video_details)}个视频）")
+        logger.info(f"📊 发布频率计算开始（基于三个月数据，共{len(video_details)}个视频）")
+        logger.info(f"   计算公式: weekly_frequency = 近3个月视频总数 ÷ 12周")
+        logger.info(f"   评分公式: max(0, 100 - abs(weekly_frequency - 理想频率) × 惩罚系数)")
         
         for video in video_details:
             if video.create_time:
@@ -129,15 +131,16 @@ class AccountQualityCalculator:
             score = max(0, 100 - penalty)
             
             details = {
-                "计算类型": "简化计算（时间戳无效）",
-                "总视频数": len(video_details),
-                "假设时间跨度": "12周（3个月）",
-                "估算发布频率": f"{len(video_details)} ÷ 12 = {estimated_weekly_frequency:.2f}次/周",
-                "理想频率": f"{ideal_frequency}次/周",
-                "偏差": f"|{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
-                "扣分": f"{deviation:.2f} × {penalty_coefficient} = {penalty:.2f}",
-                "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
-            }
+            "计算类型": "简化计算（时间戳无效）",
+            "总视频数": len(video_details),
+            "假设时间跨度": "12周（3个月）",
+            "估算发布频率": f"{len(video_details)} ÷ 12 = {estimated_weekly_frequency:.2f}次/周",
+            "weekly_frequency": f"{estimated_weekly_frequency:.2f}次/周",
+            "理想频率": f"{ideal_frequency}次/周",
+            "偏差": f"|{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
+            "扣分": f"{deviation:.2f} × {penalty_coefficient} = {penalty:.2f}",
+            "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
+        }
             
             logger.info(f"简化计算：{len(video_details)}个视频，估算频率{estimated_weekly_frequency:.1f}次/周，得分{score:.1f}")
             return score, details
@@ -150,36 +153,29 @@ class AccountQualityCalculator:
             logger.info("发布频率计算结果: 0.00次/周 (无有效视频), 得分: 0.00")
             return 0.0, details
             
-        # 计算周平均发布频率（基于三个月数据）
-        oldest_video_time = min(video.create_time for video in valid_videos)
-        newest_video_time = max(video.create_time for video in valid_videos)
-        time_span_days = max((newest_video_time - oldest_video_time).days, 1)  # 至少1天
-        weeks_count = max(time_span_days / 7.0, 1.0)  # 至少1周
-            
-        weekly_frequency = len(valid_videos) / weeks_count
+        # 使用统一的简化计算方式（基于12周）
+        estimated_weekly_frequency = len(valid_videos) / 12.0
         
         # 应用评分公式
-        ideal_frequency = 21
-        penalty_coefficient = 3
-        deviation = abs(weekly_frequency - ideal_frequency)
+        ideal_frequency = 10
+        penalty_coefficient = 6
+        deviation = abs(estimated_weekly_frequency - ideal_frequency)
         penalty = deviation * penalty_coefficient
         score = max(0, 100 - penalty)
         
         details = {
-            "计算类型": "基于三个月数据",
+            "计算类型": "统一计算（基于12周）",
             "有效视频数": len(valid_videos),
-            "最早视频时间": oldest_video_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "最晚视频时间": newest_video_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "时间跨度": f"(最晚 - 最早) = {time_span_days}天",
-            "周数计算": f"{time_span_days} ÷ 7 = {weeks_count:.2f}周",
-            "发布频率": f"{len(valid_videos)} ÷ {weeks_count:.2f} = {weekly_frequency:.2f}次/周",
+            "假设时间跨度": "12周（3个月）",
+            "发布频率": f"{len(valid_videos)} ÷ 12 = {estimated_weekly_frequency:.2f}次/周",
+            "weekly_frequency": f"{estimated_weekly_frequency:.2f}次/周",
             "理想频率": f"{ideal_frequency}次/周",
-            "偏差": f"|{weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
+            "偏差": f"|{estimated_weekly_frequency:.2f} - {ideal_frequency}| = {deviation:.2f}",
             "扣分": f"{deviation:.2f} × {penalty_coefficient} = {penalty:.2f}",
             "最终得分": f"max(0, 100 - {penalty:.2f}) = {score:.2f}"
         }
         
-        logger.info(f"发布频率计算完成：{len(valid_videos)}个视频，{time_span_days}天，频率{weekly_frequency:.1f}次/周，得分{score:.1f}")
+        logger.info(f"发布频率计算完成：{len(valid_videos)}个视频，频率{estimated_weekly_frequency:.1f}次/周，得分{score:.1f}")
         return score, details
         
     def get_quality_multiplier(self, total_score: float) -> float:
@@ -230,13 +226,27 @@ class AccountQualityCalculator:
         # 获取加权系数
         multiplier = self.get_quality_multiplier(total_score)
         
-        # 详细计算过程日志
-        logger.info(f"账户质量评分计算详情:")
-        logger.info(f"  粉丝数量: {user_profile.follower_count:,} → 得分: {follower_score:.2f} × 40% = {follower_score * 0.4:.2f}")
-        logger.info(f"  总点赞数: {user_profile.total_likes:,} → 得分: {likes_score:.2f} × 40% = {likes_score * 0.4:.2f}")
-        logger.info(f"  发布频率: 得分: {posting_score:.2f} × 20% = {posting_score * 0.2:.2f}")
-        logger.info(f"  账户质量总分: {total_score:.2f}")
-        logger.info(f"  质量加权系数: {multiplier:.3f}")
+        # 添加详细计算过程到posting_details
+        if posting_details is None:
+            posting_details = {}
+        
+        posting_details.update({
+            "账户质量详细计算过程": {
+                "粉丝数量": f"{user_profile.follower_count:,}",
+                "粉丝数量得分": f"{follower_score:.2f}",
+                "粉丝数量加权": f"{follower_score:.2f} × 40% = {follower_score * 0.4:.2f}",
+                "总点赞数": f"{user_profile.total_likes:,}",
+                "总点赞数得分": f"{likes_score:.2f}",
+                "总点赞数加权": f"{likes_score:.2f} × 40% = {likes_score * 0.4:.2f}",
+                "发布频率得分": f"{posting_score:.2f}",
+                "发布频率加权": f"{posting_score:.2f} × 20% = {posting_score * 0.2:.2f}",
+                "账户质量总分计算": f"{follower_score * 0.4:.2f} + {likes_score * 0.4:.2f} + {posting_score * 0.2:.2f} = {total_score:.2f}",
+                "质量加权系数": f"{multiplier:.3f}"
+            }
+        })
+        
+        # 账户质量评分计算完成
+        logger.info(f"✅ 账户质量评分计算完成: 总分{total_score:.2f}, 加权系数{multiplier:.3f}")
         
         return AccountQualityScore(
             follower_score=follower_score,

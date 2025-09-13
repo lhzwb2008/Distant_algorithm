@@ -38,9 +38,30 @@ class SimpleScoreAPI:
             logger.info(f"开始计算secUid {sec_uid[:20]}... 的评分")
             
             # 使用现有的评分计算方法
-            creator_score, ai_quality_scores = self.calculator.calculate_creator_score_by_user_id_with_ai_scores(
-                sec_uid, keyword=keyword
-            )
+            try:
+                result = self.calculator.calculate_creator_score_by_user_id_with_ai_scores(
+                    sec_uid, keyword=keyword
+                )
+                logger.info(f"方法返回结果类型: {type(result)}, 长度: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+                logger.info(f"返回结果内容: {result}")
+                
+                # 检查返回结果的结构
+                if not isinstance(result, (tuple, list)):
+                    logger.error(f"返回结果不是元组或列表: {type(result)}")
+                    raise ValueError(f"期望返回元组，但得到: {type(result)}")
+                
+                if len(result) != 4:
+                    logger.error(f"返回结果长度错误: 期望4个值，实际得到{len(result)}个值")
+                    logger.error(f"返回结果详情: {[type(item) for item in result]}")
+                    raise ValueError(f"期望4个返回值，但得到{len(result)}个值")
+                
+                creator_score, ai_quality_scores, video_details, user_profile = result
+            except ValueError as ve:
+                logger.error(f"解包返回值时出错: {ve}")
+                raise
+            except Exception as e:
+                logger.error(f"调用calculate_creator_score_by_user_id_with_ai_scores时出错: {e}")
+                raise
             
             # 构建响应数据
             response_data = {

@@ -611,7 +611,7 @@ class CreatorScoreCalculator:
                 "原始数据": {
                     "粉丝数量": f"{user_profile.follower_count:,}" if user_profile else "N/A",
                     "总点赞数": f"{user_profile.total_likes:,}" if user_profile else "N/A",
-                    "发布频率": creator_score.account_quality.posting_details.get("频率", "N/A") if creator_score.account_quality.posting_details else "N/A"
+                    "发布频率": creator_score.account_quality.posting_details.get("weekly_frequency", creator_score.account_quality.posting_details.get("发布频率", "N/A")) if creator_score.account_quality.posting_details else "N/A"
                 },
                 "粉丝数量得分": f"{creator_score.account_quality.follower_score:.2f}",
                 "总点赞得分": f"{creator_score.account_quality.likes_score:.2f}",
@@ -628,6 +628,7 @@ class CreatorScoreCalculator:
                 }
             },
             "各视频详细评分": individual_videos,
+            "内容互动详细计算过程": creator_score.content_interaction.calculation_details or {},
             "最终评分详细计算": {
                 "算法说明": "40%峰值表现 + 40%近期状态 + 20%整体水平",
                 "视频总数": f"{creator_score.video_count} 个",
@@ -643,7 +644,7 @@ class CreatorScoreCalculator:
         
         return breakdown
     
-    def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None, project_name: str = None) -> tuple[CreatorScore, Dict[str, QualityScore]]:
+    def calculate_creator_score_by_user_id_with_ai_scores(self, user_id: str, video_count: int = 100, keyword: str = None, project_name: str = None) -> tuple[CreatorScore, Dict[str, QualityScore], List[VideoDetail], UserProfile]:
         """通过用户ID计算创作者评分并返回AI质量评分（用于Web界面）
         
         Args:

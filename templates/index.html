@@ -511,11 +511,57 @@
                                             <div>总点赞数: ${breakdown.账户质量评分.总点赞得分}</div>
                                             <div>发布频率: ${breakdown.账户质量评分.发布频率得分}</div>
                                         </div>
+                                        
+                                        <!-- 发布频率详细计算 -->
+                                        ${breakdown.账户质量评分.发布频率详细计算 && Object.keys(breakdown.账户质量评分.发布频率详细计算).length > 0 ? `
+                                            <div style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                                                <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📈 发布频率详细计算:</div>
+                                                <div style="font-size: 12px; line-height: 1.5; color: #856404;">
+                                                    ${Object.entries(breakdown.账户质量评分.发布频率详细计算).map(([key, value]) => `
+                                                        <div style="margin-bottom: 4px;"><strong>${key}:</strong> ${value}</div>
+                                                    `).join('')}
+                                                </div>
+                                                <!-- Weekly Frequency 显示 -->
+                                                ${breakdown.账户质量评分.发布频率详细计算.weekly_frequency ? `
+                                                    <div style="margin-top: 8px; padding: 8px; background-color: #e3f2fd; border-radius: 4px; border-left: 4px solid #2196f3;">
+                                                        <span style="font-weight: bold; color: #1976d2;">Weekly Frequency:</span> 
+                                                        <span style="color: #1565c0;">${breakdown.账户质量评分.发布频率详细计算.weekly_frequency}</span>
+                                                    </div>
+                                                ` : ''}
+
+                                            </div>
+                                        ` : ''}
+                                        <!-- 账户质量详细计算过程 -->
+                                        ${breakdown.账户质量评分.发布频率详细计算 && breakdown.账户质量评分.发布频率详细计算.账户质量详细计算过程 ? `
+                                            <div style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                                <div style="font-weight: bold; color: #856404; margin-bottom: 6px;">🧮 账户质量详细计算过程:</div>
+                                                <div style="font-size: 13px; color: #495057; line-height: 1.4;">
+                                                    ${Object.entries(breakdown.账户质量评分.发布频率详细计算.账户质量详细计算过程).map(([key, value]) => `
+                                                        <div style="margin-bottom: 4px;"><strong>${key}:</strong> ${value}</div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        ` : ''}
                                         <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d;">
                                             <strong>说明:</strong> 账户质量评分用于计算最终评分的加权系数，分数越高加权越大
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                            
+                            <!-- 内容互动评分详细计算过程 -->
+                            <div class="breakdown-section">
+                                <h5>📊 内容互动评分详细计算过程</h5>
+                                ${breakdown.内容互动详细计算过程 && Object.keys(breakdown.内容互动详细计算过程).length > 0 ? `
+                                    <div style="padding: 12px; background-color: #e8f5e8; border-radius: 6px; border-left: 4px solid #28a745;">
+                                        <div style="font-weight: bold; color: #155724; margin-bottom: 8px;">🧮 内容互动详细计算过程:</div>
+                                        <div style="font-size: 13px; color: #495057; line-height: 1.4;">
+                                            ${Object.entries(breakdown.内容互动详细计算过程).map(([key, value]) => `
+                                                <div style="margin-bottom: 4px;"><strong>${key}:</strong> ${value}</div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                ` : ''}
                             </div>
                             
                             <div class="breakdown-section">

@@ -79,6 +79,7 @@ class ContentInteractionScore:
     share_score: float     # 分享得分
     save_score: float      # 保存得分
     total_score: float     # 总分
+    calculation_details: dict = None  # 详细计算过程
     
 @dataclass
 class CreatorScore:

@@ -368,8 +368,29 @@ class ContentInteractionCalculator:
             save_score * 0.15        # 保存权重15%
         )
         
-        logger.info(f"平均内容互动评分 - 播放: {view_score:.2f}, 点赞: {like_score:.2f}, "
-                   f"评论: {comment_score:.2f}, 分享: {share_score:.2f}, 保存: {save_score:.2f}, 总分: {total_score:.2f}")
+        # 详细计算过程日志
+        logger.info(f"📊 内容互动评分计算详情（基于累计值）:")
+        logger.info(f"   • 累计播放量: {total_views:,} → 得分: {view_score:.2f} × 10% = {view_score * 0.10:.2f}")
+        logger.info(f"   • 累计点赞数: {total_likes:,} → 得分: {like_score:.2f} × 15% = {like_score * 0.15:.2f}")
+        logger.info(f"   • 累计评论数: {total_comments:,} → 得分: {comment_score:.2f} × 30% = {comment_score * 0.30:.2f}")
+        logger.info(f"   • 累计分享数: {total_shares:,} → 得分: {share_score:.2f} × 30% = {share_score * 0.30:.2f}")
+        logger.info(f"   • 累计保存数: {total_saves:,} → 得分: {save_score:.2f} × 15% = {save_score * 0.15:.2f}")
+        logger.info(f"   • 内容互动总分: {total_score:.2f}")
+        
+        # 构建详细计算过程
+        calculation_details = {
+            "累计播放量": f"{total_views:,}",
+            "累计点赞数": f"{total_likes:,}",
+            "累计评论数": f"{total_comments:,}",
+            "累计分享数": f"{total_shares:,}",
+            "累计保存数": f"{total_saves:,}",
+            "播放量得分计算": f"{view_score:.2f} × 10% = {view_score * 0.10:.2f}",
+            "点赞得分计算": f"{like_score:.2f} × 15% = {like_score * 0.15:.2f}",
+            "评论得分计算": f"{comment_score:.2f} × 30% = {comment_score * 0.30:.2f}",
+            "分享得分计算": f"{share_score:.2f} × 30% = {share_score * 0.30:.2f}",
+            "保存得分计算": f"{save_score:.2f} × 15% = {save_score * 0.15:.2f}",
+            "内容互动总分": f"{total_score:.2f}"
+        }
         
         return ContentInteractionScore(
             view_score=view_score,
@@ -377,7 +398,8 @@ class ContentInteractionCalculator:
             comment_score=comment_score,
             share_score=share_score,
             save_score=save_score,
-            total_score=total_score
+            total_score=total_score,
+            calculation_details=calculation_details
         )
         
     def calculate_weighted_content_score(self, 
