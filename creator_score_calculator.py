@@ -451,6 +451,10 @@ class CreatorScoreCalculator:
                 return 0.0
                 
         else:
+            # 重要逻辑：如果没有AI评分数据，说明视频不符合筛选条件，直接返回0分
+            # 这种情况通常发生在关键词筛选时，视频内容不包含目标关键词
+            if ai_quality_scores is not None:  # 如果提供了AI评分字典但该视频不在其中
+                return 0.0
             content_quality_score = self.content_quality_score
         
         # 单视频评分 = 内容互动数据 × 65% + 内容质量 × 35%
@@ -545,7 +549,10 @@ class CreatorScoreCalculator:
         individual_videos = []
         if video_details and follower_count > 0:
             for video in video_details:
-                # 计算单个视频的互动各项得分
+                # 复用实际算分逻辑，确保显示值与计算值一致
+                video_total_score = self._calculate_single_video_score_with_ai(video, follower_count, ai_quality_scores)
+                
+                # 计算单个视频的互动各项得分（仅用于显示详情）
                 view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
                 like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count, follower_count)
                 comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count, follower_count)
@@ -554,22 +561,19 @@ class CreatorScoreCalculator:
                     getattr(video, 'collect_count', 0), video.view_count, follower_count
                 )
                 
-                # 计算互动总分
+                # 计算互动总分（仅用于显示详情）
                 interaction_total = (
                     view_score * 0.10 + like_score * 0.15 + comment_score * 0.30 +
                     share_score * 0.30 + save_score * 0.15
                 )
                 
-                # 获取AI质量分
+                # 获取AI质量分（仅用于显示详情）
                 ai_score = 0.0
                 ai_details = "无AI评分"
                 if ai_quality_scores and video.video_id in ai_quality_scores:
                     quality_score = ai_quality_scores[video.video_id]
                     ai_score = quality_score.total_score
                     ai_details = f"关键词:{quality_score.keyword_score:.1f} + 原创性:{quality_score.originality_score:.1f} + 清晰度:{quality_score.clarity_score:.1f} + 垃圾识别:{quality_score.spam_score:.1f} + 推广识别:{quality_score.promotion_score:.1f} = {ai_score:.1f}"
-                
-                # 计算视频总分
-                video_total_score = interaction_total * 0.65 + ai_score * 0.35
                 
                 # 构建视频链接
                 video_url = f"https://www.tiktok.com/@user/video/{video.video_id}"
@@ -601,7 +605,7 @@ class CreatorScoreCalculator:
                     },
                     "视频总分": {
                         "总分": f"{video_total_score:.2f}",
-                        "计算公式": f"互动分×65% + AI质量分×35% = {interaction_total:.2f}×0.65 + {ai_score:.2f}×0.35 = {video_total_score:.2f}"
+                        "计算公式": self._generate_score_formula_explanation(interaction_total, ai_score, video_total_score)
                     }
                 })
 
@@ -941,4 +945,22 @@ class CreatorScoreCalculator:
                 continue
                 
         return results
+    
+    def _generate_score_formula_explanation(self, interaction_total: float, ai_score: float, video_total_score: float) -> str:
+        """
+        生成视频总分计算公式的详细说明，包含特殊逻辑处理
+        """
+        # 计算理论值（按公式计算的结果）
+        theoretical_score = interaction_total * 0.65 + ai_score * 0.35
+        
+        # 基础公式
+        base_formula = f"互动分×65% + AI质量分×35% = {interaction_total:.2f}×0.65 + {ai_score:.2f}×0.35 = {theoretical_score:.2f}"
+        
+        # 检查是否有特殊逻辑生效
+        if ai_score == 0.0 and video_total_score == 0.0 and theoretical_score > 0:
+            return f"{base_formula}\n⚠️ 特殊规则：AI质量评分为0时，视频总分强制设为0.00"
+        elif video_total_score != theoretical_score:
+            return f"{base_formula}\n⚠️ 应用特殊评分逻辑，最终得分：{video_total_score:.2f}"
+        else:
+            return base_formula
         
