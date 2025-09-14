@@ -49,12 +49,12 @@ def background_calculate_score(task_id, username, keyword, project_name=None, co
         tasks[task_id]['progress'] = '正在分析视频内容...'
         
         # 计算评分（传入关键词和项目方名称）
-        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None, project_name=project_name if project_name else None)
+        creator_score, ai_quality_scores, video_details, user_profile, total_fetched_videos = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None, project_name=project_name if project_name else None)
         
         tasks[task_id]['progress'] = '正在生成详细报告...'
         
         # 获取详细的评分分解（包含每个视频的详细计算）
-        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count, user_profile)
+        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count, user_profile, keyword=keyword if keyword else None, project_name=project_name if project_name else None, total_fetched_videos=total_fetched_videos)
         
         # 任务完成
         tasks[task_id]['status'] = 'completed'

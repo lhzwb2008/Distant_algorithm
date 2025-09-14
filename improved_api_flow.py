@@ -62,17 +62,17 @@ class ImprovedAPIFlow:
         keyword: str = None, 
         project_name: str = None,
         max_videos: int = 100
-    ) -> tuple[List[VideoDetail], Dict[str, QualityScore]]:
-        """
-        获取用于内容互动分计算的视频，并对匹配关键词的视频进行AI评分
+    ) -> tuple[List[VideoDetail], Dict[str, QualityScore], int]:
+        """获取用于内容互动分计算的视频，并对匹配关键词的视频进行AI评分
         
         Args:
             user_id: 用户ID
             keyword: 关键词筛选
+            project_name: 项目方名称筛选
             max_videos: 最大视频数量
             
         Returns:
-            (视频详情列表, AI质量评分字典)
+            (视频详情列表, AI质量评分字典, 筛选前的总视频数量)
         """
         logger.info("🎯 第二阶段：获取内容互动分计算所需的视频数据")
         logger.info(f"   - 数据范围：最近{max_videos}条视频")
@@ -88,6 +88,7 @@ class ImprovedAPIFlow:
         # 使用原有的工作方法获取视频
         videos = []
         quality_scores = {}
+        total_fetched_videos = 0
         
         try:
             if keyword or project_name:
@@ -100,18 +101,19 @@ class ImprovedAPIFlow:
                 logger.info(f"📡 使用筛选条件 {' | '.join(filter_terms)} 获取匹配视频...")
                 
                 # 传递关键词和项目方名称到API客户端
-                videos = self.api_client.fetch_user_top_videos(user_id, max_videos, keyword, project_name)
-                logger.info(f"✅ 获取到 {len(videos)} 个匹配筛选条件的视频")
+                videos, total_fetched_videos = self.api_client.fetch_user_top_videos(user_id, max_videos, keyword, project_name)
+                logger.info(f"✅ 获取到 {len(videos)} 个匹配筛选条件的视频（从 {total_fetched_videos} 个视频中筛选）")
                 
             else:
                 # 没有筛选条件，获取最近的视频但不进行AI评分
                 logger.info(f"📡 获取最近 {max_videos} 条视频（无筛选条件）...")
-                videos = self.api_client.fetch_user_top_videos(user_id, max_videos)
+                videos, total_fetched_videos = self.api_client.fetch_user_top_videos(user_id, max_videos)
                 logger.info(f"✅ 获取到 {len(videos)} 个视频")
                 
         except Exception as e:
             logger.error(f"获取视频数据失败: {e}")
             videos = []
+            total_fetched_videos = 0
         
         # 单独处理内容分析，避免分析失败影响视频数据
         if videos and (keyword or project_name):
@@ -135,4 +137,4 @@ class ImprovedAPIFlow:
         else:
             logger.info(f"   - 平均AI评分：无")
         
-        return videos, quality_scores
+        return videos, quality_scores, total_fetched_videos

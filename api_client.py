@@ -314,7 +314,7 @@ class TiKhubAPIClient:
             logger.error(f"获取用户视频列表失败: {e}")
             return []
             
-    def fetch_user_top_videos(self, user_id: str, count: int = 5, keyword: str = None, project_name: str = None) -> List[VideoDetail]:
+    def fetch_user_top_videos(self, user_id: str, count: int = 5, keyword: str = None, project_name: str = None) -> tuple[List[VideoDetail], int]:
         """获取用户作品的详细信息
         
         Args:
@@ -324,7 +324,7 @@ class TiKhubAPIClient:
             project_name: 项目方名称筛选，如果提供则筛选包含该项目方名称的视频
             
         Returns:
-            视频详情列表
+            (视频详情列表, 筛选前的总视频数量)
         """
         if keyword or project_name:
             filter_terms = []
@@ -630,7 +630,7 @@ class TiKhubAPIClient:
                 continue
                     
         logger.info(f"成功获取用户 {user_id} 的 {len(video_details)} 个作品详情")
-        return video_details
+        return video_details, len(all_videos)
     
     def get_video_download_url(self, video_id: str) -> Optional[str]:
         """获取视频下载链接（无水印版本）
@@ -1272,8 +1272,10 @@ class TiKhubAPIClient:
         if keyword:
             logger.info(f"开始获取用户 {user_id} 包含关键词 '{keyword}' 的作品（用于内容互动分计算）")
             # 使用现有的工作方法，获取更多视频
-            return self.fetch_user_top_videos(user_id, 100, keyword)
+            videos, _ = self.fetch_user_top_videos(user_id, 100, keyword)
+            return videos
         else:
             logger.info(f"开始获取用户 {user_id} 的作品（用于内容互动分计算）")
             # 使用现有的工作方法，获取更多视频
-            return self.fetch_user_top_videos(user_id, 100)
+            videos, _ = self.fetch_user_top_videos(user_id, 100)
+            return videos

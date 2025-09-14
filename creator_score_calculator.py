@@ -198,7 +198,7 @@ class CreatorScoreCalculator:
             else:
                 print(f"   📋 无关键词筛选，获取前{video_count}条视频")
             
-            content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
+            content_interaction_videos, ai_quality_scores, total_fetched_videos = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
                 sec_uid, keyword=keyword, project_name=project_name, max_videos=video_count
             )
             
@@ -586,7 +586,7 @@ class CreatorScoreCalculator:
         
         return max(0.0, min(300.0, final_score))  # 最高300分（100 * 3.0倍数）
     
-    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None, video_details: List[VideoDetail] = None, follower_count: int = 0, user_profile: UserProfile = None) -> Dict[str, Any]:
+    def get_score_breakdown(self, creator_score: CreatorScore, ai_quality_scores: Dict[str, QualityScore] = None, video_details: List[VideoDetail] = None, follower_count: int = 0, user_profile: UserProfile = None, keyword: str = None, project_name: str = None, total_fetched_videos: int = 0) -> Dict[str, Any]:
         """获取详细的评分分解信息，包含每个视频的详细计算过程
         
         Args:
@@ -595,6 +595,9 @@ class CreatorScoreCalculator:
             video_details: 视频详情列表
             follower_count: 粉丝数量
             user_profile: 用户资料信息（包含原始粉丝数、点赞数等）
+            keyword: 关键词筛选条件
+            project_name: 项目方名称筛选条件
+            total_fetched_videos: 总共获取到的视频数量（筛选前）
             
         Returns:
             详细的评分分解信息
@@ -670,8 +673,9 @@ class CreatorScoreCalculator:
                 })
 
         # 生成视频打分说明信息
+        has_filter_conditions = bool(keyword or project_name)
         video_scoring_summary = self._generate_video_scoring_summary(
-            video_details, ai_quality_scores, creator_score.video_count
+            video_details, ai_quality_scores, creator_score.video_count, has_filter_conditions, total_fetched_videos
         )
         
         breakdown = {
@@ -714,28 +718,42 @@ class CreatorScoreCalculator:
         
         return breakdown
     
-    def _generate_video_scoring_summary(self, video_details: List[VideoDetail], ai_quality_scores: Dict[str, QualityScore], total_video_count: int) -> Dict[str, Any]:
+    def _generate_video_scoring_summary(self, video_details: List[VideoDetail], ai_quality_scores: Dict[str, QualityScore], total_video_count: int, has_filter_conditions: bool = False, total_fetched_videos: int = 0) -> Dict[str, Any]:
         """生成视频打分说明信息
         
         Args:
             video_details: 视频详情列表
             ai_quality_scores: AI质量评分字典
             total_video_count: 总视频数量
+            has_filter_conditions: 是否有筛选条件（关键词或项目方名称）
+            total_fetched_videos: 总共获取到的视频数量（筛选前）
             
         Returns:
             视频打分说明信息字典
         """
         if not video_details:
-            return {
-                "overall_status": "无视频数据",
-                "detailed_description": "未获取到任何视频数据，可能原因：用户无公开视频、API调用失败或网络问题",
-                "statistics": {
-                    "total_videos": 0,
-                    "ai_scored_videos": 0,
-                    "keyword_matched_videos": 0,
-                    "scoring_failed_videos": 0
+            if has_filter_conditions and total_fetched_videos > 0:
+                return {
+                    "overall_status": "关键词或赞助商名称不匹配",
+                    "detailed_description": f"获取到{total_fetched_videos}个视频，但均未匹配到指定的关键词或赞助商名称",
+                    "statistics": {
+                        "total_videos": 0,
+                        "ai_scored_videos": 0,
+                        "keyword_matched_videos": 0,
+                        "scoring_failed_videos": 0
+                    }
                 }
-            }
+            else:
+                return {
+                    "overall_status": "无视频数据",
+                    "detailed_description": "未获取到任何视频数据，可能原因：用户无公开视频、API调用失败或网络问题",
+                    "statistics": {
+                        "total_videos": 0,
+                        "ai_scored_videos": 0,
+                        "keyword_matched_videos": 0,
+                        "scoring_failed_videos": 0
+                    }
+                }
         
         # 统计各种情况的视频数量
         total_videos = len(video_details)
@@ -825,7 +843,7 @@ class CreatorScoreCalculator:
             else:
                 print(f"   📋 无关键词筛选，获取前{video_count}条视频")
             
-            content_interaction_videos, ai_quality_scores = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
+            content_interaction_videos, ai_quality_scores, total_fetched_videos = self.improved_flow.fetch_videos_for_content_interaction_with_ai_scoring(
                 sec_uid, keyword=keyword, project_name=project_name, max_videos=video_count
             )
             
@@ -1006,7 +1024,7 @@ class CreatorScoreCalculator:
                 video_scores=all_video_scores if content_interaction_videos else []
             )
             
-            return creator_score, ai_quality_scores, content_interaction_videos, user_profile
+            return creator_score, ai_quality_scores, content_interaction_videos, user_profile, total_fetched_videos
             
         except Exception as e:
             logger.error(f"通过用户ID {user_id} 计算评分时发生错误: {e}")
