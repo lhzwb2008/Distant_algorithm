@@ -426,19 +426,29 @@
             const loading = document.getElementById('loading');
             const result = document.getElementById('result');
             const submitBtn = document.getElementById('submitBtn');
-            
+
             // 重置状态
             loading.style.display = 'none';
             submitBtn.disabled = false;
             submitBtn.textContent = '🚀 开始AI智能评分';
             currentTaskId = null;
-            
+
             // 显示成功结果
             result.className = 'result success';
-            
-            // 构建详细分解HTML
-            const breakdown = data.breakdown;
-                    const breakdownHTML = `
+
+            try {
+                const breakdown = data.breakdown || {};
+
+                console.log('Starting breakdown rendering...');
+                console.log('Breakdown data:', JSON.stringify(breakdown, null, 2));
+
+                // Add logs for key sections
+                console.log('最终评分详细计算:', breakdown.最终评分详细计算);
+                console.log('账户质量评分:', breakdown.账户质量评分);
+                console.log('视频打分说明:', breakdown.视频打分说明);
+
+                // 构建详细分解HTML
+                const breakdownHTML = `
                         <div class="breakdown" id="breakdown" style="display: none;">
                             <h4>📊 详细计算过程</h4>
                             
@@ -446,11 +456,11 @@
                                 <h5>🏆 最终评分计算过程</h5>
                                 <div class="breakdown-item">
                                     <span class="label">算法说明:</span>
-                                    <span class="value">${breakdown.最终评分详细计算.算法说明}</span>
+                                    <span class="value">${breakdown.最终评分详细计算?.算法说明 || 'N/A'}</span>
                                 </div>
                                 <div class="breakdown-item">
                                     <span class="label">视频数据:</span>
-                                    <span class="value">${breakdown.最终评分详细计算.视频总数 || breakdown.最终评分详细计算.视频数据}</span>
+                                    <span class="value">${breakdown.最终评分详细计算?.视频总数 || 'N/A'}</span>
                                 </div>
                                 
                                 <!-- 算法说明 -->
@@ -491,7 +501,7 @@
                             </div>
                             
                             <div class="breakdown-section">
-                                <h5>👤 账户质量加权系数: ${breakdown.账户质量评分.质量加权系数}</h5>
+                                <h5>👤 账户质量加权系数: ${breakdown.账户质量评分?.质量加权系数 || 'N/A'}</h5>
                                 <div style="padding: 12px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #6c757d;">
                                     <div style="font-size: 14px; line-height: 1.6; color: #495057;">
                                         <!-- 原始数据部分 -->
@@ -513,7 +523,7 @@
                                         </div>
                                         
                                         <!-- 发布频率详细计算 -->
-                                        ${breakdown.账户质量评分.发布频率详细计算 && Object.keys(breakdown.账户质量评分.发布频率详细计算).length > 0 ? `
+                                        ${breakdown.账户质量评分?.发布频率详细计算 && typeof breakdown.账户质量评分.发布频率详细计算 === 'object' && Object.keys(breakdown.账户质量评分.发布频率详细计算).length > 0 ? `
                                             <div style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
                                                 <div style="font-weight: bold; color: #856404; margin-bottom: 8px;">📈 发布频率详细计算:</div>
                                                 <div style="font-size: 12px; line-height: 1.5; color: #856404;">
@@ -530,9 +540,9 @@
                                                 ` : ''}
 
                                             </div>
-                                        ` : ''}
+                                        ` : '<div>无发布频率详细计算数据</div>'}
                                         <!-- 账户质量详细计算过程 -->
-                                        ${breakdown.账户质量评分.发布频率详细计算 && breakdown.账户质量评分.发布频率详细计算.账户质量详细计算过程 ? `
+                                        ${breakdown.账户质量评分?.发布频率详细计算 && breakdown.账户质量评分.发布频率详细计算?.账户质量详细计算过程 && typeof breakdown.账户质量评分.发布频率详细计算.账户质量详细计算过程 === 'object' ? `
                                             <div style="margin-top: 12px; padding: 10px; background-color: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
                                                 <div style="font-weight: bold; color: #856404; margin-bottom: 6px;">🧮 账户质量详细计算过程:</div>
                                                 <div style="font-size: 13px; color: #495057; line-height: 1.4;">
@@ -566,29 +576,24 @@
                                         </div>
                                         
                                         <!-- 统计信息 -->
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 15px;">
-                                            ${Object.entries(breakdown.视频打分说明.statistics).map(([key, value]) => `
+                                        ${breakdown.视频打分说明?.statistics && typeof breakdown.视频打分说明.statistics === 'object' ? Object.entries(breakdown.视频打分说明.statistics).map(([key, value]) => `
                                                 <div style="background: rgba(255,255,255,0.7); padding: 8px; border-radius: 4px; text-align: center;">
                                                     <div style="font-size: 12px; color: #666; margin-bottom: 2px;">${key}</div>
                                                     <div style="font-weight: bold; color: #333;">${value}</div>
                                                 </div>
-                                            `).join('')}
-                                        </div>
+                                            `).join('') : '<div>无统计数据</div>'}
                                         
                                         <!-- 评分说明 -->
-                                        <div style="background: rgba(255,255,255,0.5); padding: 12px; border-radius: 6px;">
-                                            <div style="font-weight: bold; color: #495057; margin-bottom: 8px;">📝 评分规则说明：</div>
-                                            ${Object.entries(breakdown.视频打分说明.scoring_explanation).map(([key, value]) => `
+                                        ${breakdown.视频打分说明?.scoring_explanation && typeof breakdown.视频打分说明.scoring_explanation === 'object' ? Object.entries(breakdown.视频打分说明.scoring_explanation).map(([key, value]) => `
                                                 <div style="font-size: 13px; color: #6c757d; margin-bottom: 4px;">• <strong>${key}:</strong> ${value}</div>
-                                            `).join('')}
-                                        </div>
+                                            `).join('') : '<div>无评分规则说明</div>'}
                                     </div>
                                 </div>
                             ` : ''}
                             
                             <div class="breakdown-section">
                                 <h5>📹 各视频详细评分</h5>
-                                ${breakdown.individual_videos && breakdown.individual_videos.length > 0 ? 
+                                ${breakdown.individual_videos && Array.isArray(breakdown.individual_videos) && breakdown.individual_videos.length > 0 ? 
                                     breakdown.individual_videos.map((video, index) => `
                                         <div style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #007bff;">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -682,7 +687,7 @@
                                 <div><strong>👤 用户名:</strong> ${data.username}</div>
                                 <div><strong>🎯 关键词:</strong> ${data.keyword || '无'}</div>
                                 <div><strong>🏢 项目方:</strong> ${data.project_name || '无'}</div>
-                                <div><strong>📊 分析视频:</strong> ${breakdown.最终评分详细计算.视频总数 || breakdown.individual_videos?.length || 0}个</div>
+                                <div><strong>📊 分析视频:</strong> ${breakdown.最终评分详细计算?.视频总数 || breakdown.individual_videos?.length || 0}个</div>
                                 <div><strong>🤖 AI分析:</strong> v3.0增强算法</div>
                             </div>
                             <button class="toggle-breakdown" onclick="toggleBreakdown()">🔬 查看AI分析详情</button>
@@ -691,6 +696,27 @@
                     `;
                 
                 result.style.display = 'block';
+            } catch (error) {
+                console.error('显示结果时发生错误:', error);
+                // 回退到简单的结果显示
+                result.innerHTML = `
+                    <h3>🎯 AI智能评分完成</h3>
+                    <div class="score">${data.score} 分</div>
+                    <div class="score-details">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
+                            <div><strong>👤 用户名:</strong> ${data.username}</div>
+                            <div><strong>🎯 关键词:</strong> ${data.keyword || '无'}</div>
+                            <div><strong>🏢 项目方:</strong> ${data.project_name || '无'}</div>
+                            <div><strong>🤖 AI分析:</strong> v3.0增强算法</div>
+                        </div>
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                            <h4>⚠️ 详细分析数据加载失败</h4>
+                            <p>评分计算已完成，但详细分解信息显示异常。如需查看完整分析结果，请刷新页面重试。</p>
+                        </div>
+                    </div>
+                `;
+                result.style.display = 'block';
+            }
         }
         
         function displayError(errorMessage) {
