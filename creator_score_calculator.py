@@ -770,8 +770,8 @@ class CreatorScoreCalculator:
             status = "AI评分全部失败"
             description = f"获取到{total_videos}个视频，AI评分服务调用失败，仅使用互动数据评分"
         elif ai_success_count == 0:
-            status = "AI评分全部为0"
-            description = f"获取到{total_videos}个视频，AI评分均为0分（未匹配关键词或内容质量较低）"
+            status = "关键词或赞助商名称不匹配"
+            description = f"获取到{total_videos}个视频，但均未匹配到指定的关键词或赞助商名称"
         else:
             status = "正常评分"
             description = f"获取到{total_videos}个视频，其中{ai_success_count}个获得AI质量评分"
