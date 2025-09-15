@@ -137,7 +137,7 @@ class ContentInteractionCalculator:
             "基准系数": f"{coefficient1}",
             "期望播放量": f"{follower_count:,} × {coefficient1} = {expected_views:,}",
             "播放比例": f"{views:,} / {expected_views:,} = {view_ratio:.4f}",
-            "公式": "min((播放量 / 期望播放量) × 100, 100)",
+            "公式": "min((播放量 / (粉丝数 × 系数1)) × 100, 100)",
             "计算过程": f"min({view_ratio:.4f} × 100, 100) = min({view_ratio*100:.2f}, 100) = {score:.2f}",
             "最终得分": f"{score:.2f}"
         }
@@ -254,7 +254,7 @@ class ContentInteractionCalculator:
             "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
             "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
             "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
-            "公式": "min((点赞数 / 基准值) × 2500, 100)",
+            "公式": "min((点赞数 / max(粉丝数×系数1×20%, 播放量×系数2)) × 2500, 100)",
             "计算过程": f"min(({likes:,} / {base_value:.2f}) × 2500, 100) = min({likes/base_value*2500:.2f}, 100) = {score:.2f}",
             "最终得分": f"{score:.2f}"
         }
@@ -360,7 +360,7 @@ class ContentInteractionCalculator:
             "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
             "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
             "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
-            "公式": "min((评论数 / 基准值) × 12500, 100)",
+            "公式": "min((评论数 / max(粉丝数×系数1×20%, 播放量×系数2)) × 12500, 100)",
             "计算过程": f"min(({comments:,} / {base_value:.2f}) × 12500, 100) = min({comments/base_value*12500:.2f}, 100) = {score:.2f}",
             "最终得分": f"{score:.2f}"
         }
@@ -453,7 +453,7 @@ class ContentInteractionCalculator:
             "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
             "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
             "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
-            "公式": "min((分享数 / 基准值) × 25000, 100)",
+            "公式": "min((分享数 / max(粉丝数×系数1×20%, 播放量×系数2)) × 25000, 100)",
             "计算过程": f"min(({shares:,} / {base_value:.2f}) × 25000, 100) = min({shares/base_value*25000:.2f}, 100) = {score:.2f}",
             "最终得分": f"{score:.2f}"
         }
@@ -546,7 +546,7 @@ class ContentInteractionCalculator:
             "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
             "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
             "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
-            "公式": "min((保存数 / 基准值) × 10000, 100)",
+            "公式": "min((保存数 / max(粉丝数×系数1×20%, 播放量×系数2)) × 10000, 100)",
             "计算过程": f"min(({saves:,} / {base_value:.2f}) × 10000, 100) = min({saves/base_value*10000:.2f}, 100) = {score:.2f}",
             "最终得分": f"{score:.2f}"
         }
