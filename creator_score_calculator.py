@@ -614,12 +614,12 @@ class CreatorScoreCalculator:
                 # 复用实际算分逻辑，确保显示值与计算值一致
                 video_total_score = self._calculate_single_video_score_with_ai(video, follower_count, ai_quality_scores)
                 
-                # 计算单个视频的互动各项得分（仅用于显示详情）
-                view_score = self.content_calculator.calculate_view_score(video.view_count, follower_count)
-                like_score = self.content_calculator.calculate_like_score(video.like_count, video.view_count, follower_count)
-                comment_score = self.content_calculator.calculate_comment_score(video.comment_count, video.view_count, follower_count)
-                share_score = self.content_calculator.calculate_share_score(video.share_count, video.view_count, follower_count)
-                save_score = self.content_calculator.calculate_save_score(
+                # 计算单个视频的互动各项得分（使用详细计算方法）
+                view_score, view_details = self.content_calculator.calculate_view_score_with_details(video.view_count, follower_count)
+                like_score, like_details = self.content_calculator.calculate_like_score_with_details(video.like_count, video.view_count, follower_count)
+                comment_score, comment_details = self.content_calculator.calculate_comment_score_with_details(video.comment_count, video.view_count, follower_count)
+                share_score, share_details = self.content_calculator.calculate_share_score_with_details(video.share_count, video.view_count, follower_count)
+                save_score, save_details = self.content_calculator.calculate_save_score_with_details(
                     getattr(video, 'collect_count', 0), video.view_count, follower_count
                 )
                 
@@ -659,6 +659,13 @@ class CreatorScoreCalculator:
                         "保存得分": f"{save_score:.2f}",
                         "互动总分": f"{interaction_total:.2f}",
                         "计算过程": f"{view_score:.2f}×10% + {like_score:.2f}×15% + {comment_score:.2f}×30% + {share_score:.2f}×30% + {save_score:.2f}×15% = {interaction_total:.2f}"
+                    },
+                    "详细计算过程": {
+                        "播放量计算": view_details,
+                        "点赞计算": like_details,
+                        "评论计算": comment_details,
+                        "分享计算": share_details,
+                        "保存计算": save_details
                     },
                     "AI质量评分": {
                         "AI总分": f"{ai_score:.2f}",

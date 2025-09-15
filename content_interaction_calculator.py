@@ -36,7 +36,7 @@ class ContentInteractionCalculator:
             return 0.24
         elif follower_count <= 10000:
             return 0.10
-        elif follower_count <= 50000:
+        elif follower_count < 50000:
             return 0.04
         elif follower_count <= 100000:
             return 0.05
@@ -104,6 +104,66 @@ class ContentInteractionCalculator:
         score = min(view_ratio * 100, 100)
         return max(0.0, score)
         
+    def calculate_view_score_with_details(self, views: int, follower_count: int) -> tuple:
+        """计算视频播放量得分并返回详细计算过程
+        
+        Returns:
+            (score, details_dict)
+        """
+        if follower_count <= 0:
+            score = min((views / 2000) * 100, 100)
+            score = max(0.0, score)
+            details = {
+                "原始数据": f"播放量: {views:,}, 粉丝数: {follower_count}",
+                "计算方式": "无粉丝数据时的计算",
+                "公式": "min((播放量 / 2000) × 100, 100)",
+                "计算过程": f"min(({views:,} / 2000) × 100, 100) = min({views/2000*100:.2f}, 100) = {score:.2f}",
+                "最终得分": f"{score:.2f}"
+            }
+            return score, details
+        
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        expected_views = follower_count * coefficient1
+        view_ratio = views / expected_views
+        score = min(view_ratio * 100, 100)
+        score = max(0.0, score)
+        
+        # 获取粉丝数量分层说明
+        tier_description = self._get_follower_tier_description(follower_count)
+        
+        details = {
+            "原始数据": f"播放量: {views:,}, 粉丝数: {follower_count:,}",
+            "系数1选择过程": f"粉丝数{follower_count:,} → {tier_description}",
+            "基准系数": f"{coefficient1}",
+            "期望播放量": f"{follower_count:,} × {coefficient1} = {expected_views:,}",
+            "播放比例": f"{views:,} / {expected_views:,} = {view_ratio:.4f}",
+            "公式": "min((播放量 / 期望播放量) × 100, 100)",
+            "计算过程": f"min({view_ratio:.4f} × 100, 100) = min({view_ratio*100:.2f}, 100) = {score:.2f}",
+            "最终得分": f"{score:.2f}"
+        }
+        return score, details
+        
+    def _get_follower_tier_description(self, follower_count: int) -> str:
+        """获取粉丝数量分层描述"""
+        if follower_count <= 100:
+            return f"0-100粉丝层级 (系数1.5)"
+        elif follower_count <= 1000:
+            return f"100-1k粉丝层级 (系数1.0)"
+        elif follower_count <= 5000:
+            return f"1k-5k粉丝层级 (系数0.24)"
+        elif follower_count <= 10000:
+            return f"5k-10k粉丝层级 (系数0.10)"
+        elif follower_count < 50000:
+            return f"10k-50k粉丝层级 (系数0.04)"
+        elif follower_count <= 100000:
+            return f"50k-100k粉丝层级 (系数0.05)"
+        elif follower_count <= 500000:
+            return f"100k-500k粉丝层级 (系数0.06)"
+        elif follower_count <= 1000000:
+            return f"500k-1M粉丝层级 (系数0.05)"
+        else:
+            return f"1M+粉丝层级 (系数0.04)"
+        
     def calculate_like_score(self, likes: int, views: int, follower_count: int = 0) -> float:
         """计算点赞数得分
         
@@ -139,6 +199,79 @@ class ContentInteractionCalculator:
             
         score = min((likes / base_value) * 2500, 100)
         return max(0.0, score)
+        
+    def calculate_like_score_with_details(self, likes: int, views: int, follower_count: int = 0) -> tuple:
+        """计算点赞数得分并返回详细计算过程"""
+        if views <= 0:
+            details = {
+                "原始数据": f"点赞数: {likes:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "播放量为0，无法计算点赞得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+        
+        if follower_count <= 0:
+            like_rate = likes / views
+            score = min(like_rate * 2500, 100)
+            score = max(0.0, score)
+            details = {
+                "原始数据": f"点赞数: {likes:,}, 播放量: {views:,}, 粉丝数: {follower_count}",
+                "计算方式": "无粉丝数据时的计算",
+                "点赞率": f"{likes:,} / {views:,} = {like_rate:.6f}",
+                "公式": "min(点赞率 × 2500, 100)",
+                "计算过程": f"min({like_rate:.6f} × 2500, 100) = min({like_rate*2500:.2f}, 100) = {score:.2f}",
+                "最终得分": f"{score:.2f}"
+            }
+            return score, details
+        
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2
+        view_base = views * coefficient2
+        base_value = max(follower_base, view_base)
+        
+        if base_value <= 0:
+            details = {
+                "原始数据": f"点赞数: {likes:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "基准值计算为0，无法计算点赞得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+            
+        score = min((likes / base_value) * 2500, 100)
+        score = max(0.0, score)
+        
+        # 获取播放量分层说明
+        view_tier = self._get_view_tier_description(views)
+        
+        details = {
+            "原始数据": f"点赞数: {likes:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+            "系数1选择过程": f"粉丝数{follower_count:,} → {self._get_follower_tier_description(follower_count)}",
+            "系数2选择过程": f"播放量{views:,} → {view_tier}",
+            "粉丝基准系数": f"{coefficient1}",
+            "播放量基准系数": f"{coefficient2}",
+            "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
+            "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
+            "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
+            "公式": "min((点赞数 / 基准值) × 2500, 100)",
+            "计算过程": f"min(({likes:,} / {base_value:.2f}) × 2500, 100) = min({likes/base_value*2500:.2f}, 100) = {score:.2f}",
+            "最终得分": f"{score:.2f}"
+        }
+        return score, details
+        
+    def _get_view_tier_description(self, views: int) -> str:
+        """获取播放量分层描述"""
+        if views <= 1000:
+            return f"0-1k播放层级 (系数2.0)"
+        elif views <= 10000:
+            return f"1k-10k播放层级 (系数1.0)"
+        elif views <= 100000:
+            return f"10k-100k播放层级 (系数0.7)"
+        elif views <= 500000:
+            return f"100k-500k播放层级 (系数0.6)"
+        else:
+            return f"500k+播放层级 (系数0.5)"
         
     def calculate_comment_score(self, comments: int, views: int, follower_count: int = 0) -> float:
         """计算评论数得分
@@ -176,6 +309,63 @@ class ContentInteractionCalculator:
         score = min((comments / base_value) * 12500, 100)
         return max(0.0, score)
         
+    def calculate_comment_score_with_details(self, comments: int, views: int, follower_count: int = 0) -> tuple:
+        """计算评论数得分并返回详细计算过程"""
+        if views <= 0:
+            details = {
+                "原始数据": f"评论数: {comments:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "播放量为0，无法计算评论得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+        
+        if follower_count <= 0:
+            comment_rate = comments / views
+            score = min(comment_rate * 12500, 100)
+            score = max(0.0, score)
+            details = {
+                "原始数据": f"评论数: {comments:,}, 播放量: {views:,}, 粉丝数: {follower_count}",
+                "计算方式": "无粉丝数据时的计算",
+                "评论率": f"{comments:,} / {views:,} = {comment_rate:.6f}",
+                "公式": "min(评论率 × 12500, 100)",
+                "计算过程": f"min({comment_rate:.6f} × 12500, 100) = min({comment_rate*12500:.2f}, 100) = {score:.2f}",
+                "最终得分": f"{score:.2f}"
+            }
+            return score, details
+        
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2
+        view_base = views * coefficient2
+        base_value = max(follower_base, view_base)
+        
+        if base_value <= 0:
+            details = {
+                "原始数据": f"评论数: {comments:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "基准值计算为0，无法计算评论得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+            
+        score = min((comments / base_value) * 12500, 100)
+        score = max(0.0, score)
+        
+        details = {
+            "原始数据": f"评论数: {comments:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+            "系数1选择过程": f"粉丝数{follower_count:,} → {self._get_follower_tier_description(follower_count)}",
+            "系数2选择过程": f"播放量{views:,} → {self._get_view_tier_description(views)}",
+            "粉丝基准系数": f"{coefficient1}",
+            "播放量基准系数": f"{coefficient2}",
+            "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
+            "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
+            "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
+            "公式": "min((评论数 / 基准值) × 12500, 100)",
+            "计算过程": f"min(({comments:,} / {base_value:.2f}) × 12500, 100) = min({comments/base_value*12500:.2f}, 100) = {score:.2f}",
+            "最终得分": f"{score:.2f}"
+        }
+        return score, details
+        
     def calculate_share_score(self, shares: int, views: int, follower_count: int = 0) -> float:
         """计算分享数得分
         
@@ -212,6 +402,63 @@ class ContentInteractionCalculator:
         score = min((shares / base_value) * 25000, 100)
         return max(0.0, score)
         
+    def calculate_share_score_with_details(self, shares: int, views: int, follower_count: int = 0) -> tuple:
+        """计算分享数得分并返回详细计算过程"""
+        if views <= 0:
+            details = {
+                "原始数据": f"分享数: {shares:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "播放量为0，无法计算分享得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+        
+        if follower_count <= 0:
+            share_rate = shares / views
+            score = min(share_rate * 25000, 100)
+            score = max(0.0, score)
+            details = {
+                "原始数据": f"分享数: {shares:,}, 播放量: {views:,}, 粉丝数: {follower_count}",
+                "计算方式": "无粉丝数据时的计算",
+                "分享率": f"{shares:,} / {views:,} = {share_rate:.6f}",
+                "公式": "min(分享率 × 25000, 100)",
+                "计算过程": f"min({share_rate:.6f} × 25000, 100) = min({share_rate*25000:.2f}, 100) = {score:.2f}",
+                "最终得分": f"{score:.2f}"
+            }
+            return score, details
+        
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2
+        view_base = views * coefficient2
+        base_value = max(follower_base, view_base)
+        
+        if base_value <= 0:
+            details = {
+                "原始数据": f"分享数: {shares:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "基准值计算为0，无法计算分享得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+            
+        score = min((shares / base_value) * 25000, 100)
+        score = max(0.0, score)
+        
+        details = {
+            "原始数据": f"分享数: {shares:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+            "系数1选择过程": f"粉丝数{follower_count:,} → {self._get_follower_tier_description(follower_count)}",
+            "系数2选择过程": f"播放量{views:,} → {self._get_view_tier_description(views)}",
+            "粉丝基准系数": f"{coefficient1}",
+            "播放量基准系数": f"{coefficient2}",
+            "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
+            "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
+            "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
+            "公式": "min((分享数 / 基准值) × 25000, 100)",
+            "计算过程": f"min(({shares:,} / {base_value:.2f}) × 25000, 100) = min({shares/base_value*25000:.2f}, 100) = {score:.2f}",
+            "最终得分": f"{score:.2f}"
+        }
+        return score, details
+        
     def calculate_save_score(self, saves: int, views: int, follower_count: int = 0) -> float:
         """计算保存数得分
         
@@ -247,6 +494,63 @@ class ContentInteractionCalculator:
             
         score = min((saves / base_value) * 10000, 100)
         return max(0.0, score)
+        
+    def calculate_save_score_with_details(self, saves: int, views: int, follower_count: int = 0) -> tuple:
+        """计算保存数得分并返回详细计算过程"""
+        if views <= 0:
+            details = {
+                "原始数据": f"保存数: {saves:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "播放量为0，无法计算保存得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+        
+        if follower_count <= 0:
+            save_rate = saves / views
+            score = min(save_rate * 10000, 100)
+            score = max(0.0, score)
+            details = {
+                "原始数据": f"保存数: {saves:,}, 播放量: {views:,}, 粉丝数: {follower_count}",
+                "计算方式": "无粉丝数据时的计算",
+                "保存率": f"{saves:,} / {views:,} = {save_rate:.6f}",
+                "公式": "min(保存率 × 10000, 100)",
+                "计算过程": f"min({save_rate:.6f} × 10000, 100) = min({save_rate*10000:.2f}, 100) = {score:.2f}",
+                "最终得分": f"{score:.2f}"
+            }
+            return score, details
+        
+        coefficient1 = self._get_follower_coefficient(follower_count)
+        coefficient2 = self._get_view_coefficient(views)
+        
+        follower_base = follower_count * coefficient1 * 0.2
+        view_base = views * coefficient2
+        base_value = max(follower_base, view_base)
+        
+        if base_value <= 0:
+            details = {
+                "原始数据": f"保存数: {saves:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+                "错误": "基准值计算为0，无法计算保存得分",
+                "最终得分": "0.00"
+            }
+            return 0.0, details
+            
+        score = min((saves / base_value) * 10000, 100)
+        score = max(0.0, score)
+        
+        details = {
+            "原始数据": f"保存数: {saves:,}, 播放量: {views:,}, 粉丝数: {follower_count:,}",
+            "系数1选择过程": f"粉丝数{follower_count:,} → {self._get_follower_tier_description(follower_count)}",
+            "系数2选择过程": f"播放量{views:,} → {self._get_view_tier_description(views)}",
+            "粉丝基准系数": f"{coefficient1}",
+            "播放量基准系数": f"{coefficient2}",
+            "粉丝基准值": f"{follower_count:,} × {coefficient1} × 20% = {follower_base:.2f}",
+            "播放量基准值": f"{views:,} × {coefficient2} = {view_base:.2f}",
+            "最终基准值": f"max({follower_base:.2f}, {view_base:.2f}) = {base_value:.2f}",
+            "公式": "min((保存数 / 基准值) × 10000, 100)",
+            "计算过程": f"min(({saves:,} / {base_value:.2f}) × 10000, 100) = min({saves/base_value*10000:.2f}, 100) = {score:.2f}",
+            "最终得分": f"{score:.2f}"
+        }
+        return score, details
         
     def calculate_completion_score(self, completion_rate: float) -> float:
         """计算完播率得分

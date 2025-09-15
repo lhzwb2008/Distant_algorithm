@@ -50,12 +50,12 @@ class SimpleScoreAPI:
                     logger.error(f"返回结果不是元组或列表: {type(result)}")
                     raise ValueError(f"期望返回元组，但得到: {type(result)}")
                 
-                if len(result) != 4:
-                    logger.error(f"返回结果长度错误: 期望4个值，实际得到{len(result)}个值")
+                if len(result) != 5:
+                    logger.error(f"返回结果长度错误: 期望5个值，实际得到{len(result)}个值")
                     logger.error(f"返回结果详情: {[type(item) for item in result]}")
-                    raise ValueError(f"期望4个返回值，但得到{len(result)}个值")
+                    raise ValueError(f"期望5个返回值，但得到{len(result)}个值")
                 
-                creator_score, ai_quality_scores, video_details, user_profile = result
+                creator_score, ai_quality_scores, video_details, user_profile, total_fetched_videos = result
             except ValueError as ve:
                 logger.error(f"解包返回值时出错: {ve}")
                 raise
@@ -95,6 +95,7 @@ class SimpleScoreAPI:
                 "user_info": {
                     "username": creator_score.username,
                     "video_count": creator_score.video_count,
+                    "total_fetched_videos": total_fetched_videos,
                     "calculated_at": creator_score.calculated_at.isoformat()
                 },
                 "ai_quality_scores": {}

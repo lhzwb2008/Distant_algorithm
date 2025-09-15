@@ -217,10 +217,10 @@ def calculate_score():
             }), 404
         
         # 计算评分
-        creator_score, ai_quality_scores, video_details, user_profile = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
+        creator_score, ai_quality_scores, video_details, user_profile, total_fetched_videos = calculator.calculate_creator_score_by_user_id_with_ai_scores(sec_uid, keyword=keyword if keyword else None)
         
         # 获取详细的评分分解（包含每个视频的详细计算）
-        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count, user_profile)
+        score_breakdown = calculator.get_score_breakdown(creator_score, ai_quality_scores, video_details, user_profile.follower_count, user_profile, keyword=keyword if keyword else None, project_name=None, total_fetched_videos=total_fetched_videos)
         
         return jsonify({
             'success': True,

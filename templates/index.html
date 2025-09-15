@@ -313,6 +313,18 @@
             }
         }
         
+        // 切换单个视频的详细计算过程
+        function toggleVideoDetails(videoId) {
+            const details = document.getElementById(`video-details-${videoId}`);
+            if (details) {
+                if (details.style.display === 'none') {
+                    details.style.display = 'block';
+                } else {
+                    details.style.display = 'none';
+                }
+            }
+        }
+        
         let currentTaskId = null;
         let pollingInterval = null;
         
@@ -640,6 +652,76 @@
                                                 <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
                                                     <strong>计算:</strong> ${video.互动评分.计算过程}
                                                 </div>
+                                                
+                                                <!-- 详细计算过程 -->
+                                                ${video.详细计算过程 ? `
+                                                    <div style="margin-top: 10px; padding: 12px; background-color: #f8f9fa; border-radius: 6px; border-left: 4px solid #28a745;">
+                                                        <div style="font-weight: bold; color: #155724; margin-bottom: 8px; cursor: pointer;" onclick="toggleVideoDetails('${video.video_id}')">
+                                                            🔍 详细计算过程 (点击展开/收起)
+                                                        </div>
+                                                        <div id="video-details-${video.video_id}" style="display: none;">
+                                                            <!-- 播放量计算 -->
+                                                            ${video.详细计算过程.播放量计算 ? `
+                                                                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                                                                    <div style="font-weight: bold; color: #007bff; margin-bottom: 6px;">📺 播放量计算</div>
+                                                                    <div style="font-size: 12px; line-height: 1.4;">
+                                                                        ${Object.entries(video.详细计算过程.播放量计算).map(([key, value]) => `
+                                                                            <div><strong>${key}:</strong> ${value}</div>
+                                                                        `).join('')}
+                                                                    </div>
+                                                                </div>
+                                                            ` : ''}
+                                                            
+                                                            <!-- 点赞计算 -->
+                                                            ${video.详细计算过程.点赞计算 ? `
+                                                                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                                                                    <div style="font-weight: bold; color: #dc3545; margin-bottom: 6px;">👍 点赞计算</div>
+                                                                    <div style="font-size: 12px; line-height: 1.4;">
+                                                                        ${Object.entries(video.详细计算过程.点赞计算).map(([key, value]) => `
+                                                                            <div><strong>${key}:</strong> ${value}</div>
+                                                                        `).join('')}
+                                                                    </div>
+                                                                </div>
+                                                            ` : ''}
+                                                            
+                                                            <!-- 评论计算 -->
+                                                            ${video.详细计算过程.评论计算 ? `
+                                                                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                                                                    <div style="font-weight: bold; color: #28a745; margin-bottom: 6px;">💬 评论计算</div>
+                                                                    <div style="font-size: 12px; line-height: 1.4;">
+                                                                        ${Object.entries(video.详细计算过程.评论计算).map(([key, value]) => `
+                                                                            <div><strong>${key}:</strong> ${value}</div>
+                                                                        `).join('')}
+                                                                    </div>
+                                                                </div>
+                                                            ` : ''}
+                                                            
+                                                            <!-- 分享计算 -->
+                                                            ${video.详细计算过程.分享计算 ? `
+                                                                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                                                                    <div style="font-weight: bold; color: #ffc107; margin-bottom: 6px;">📤 分享计算</div>
+                                                                    <div style="font-size: 12px; line-height: 1.4;">
+                                                                        ${Object.entries(video.详细计算过程.分享计算).map(([key, value]) => `
+                                                                            <div><strong>${key}:</strong> ${value}</div>
+                                                                        `).join('')}
+                                                                    </div>
+                                                                </div>
+                                                            ` : ''}
+                                                            
+                                                            <!-- 保存计算 -->
+                                                            ${video.详细计算过程.保存计算 ? `
+                                                                <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 4px;">
+                                                                    <div style="font-weight: bold; color: #6f42c1; margin-bottom: 6px;">💾 保存计算</div>
+                                                                    <div style="font-size: 12px; line-height: 1.4;">
+                                                                        ${Object.entries(video.详细计算过程.保存计算).map(([key, value]) => `
+                                                                            <div><strong>${key}:</strong> ${value}</div>
+                                                                        `).join('')}
+                                                                    </div>
+                                                                </div>
+                                                            ` : ''}
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
                                             </div>
                                             
                                             <!-- AI质量评分 -->
