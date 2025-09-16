@@ -335,7 +335,8 @@ class TiKhubAPIClient:
             logger.info(f"开始获取用户 {user_id} 包含筛选条件 {' | '.join(filter_terms)} 的作品")
             # 当有筛选条件时，需要获取更多视频进行筛选
             max_videos_to_check = Config.CONTENT_INTERACTION_MAX_VIDEOS
-            max_pages = max_videos_to_check // 20 + 1  # 计算需要的页数
+            # 考虑到每页可能返回超过20个视频，多获取1-2页作为缓冲
+            max_pages = (max_videos_to_check + 40) // 20  # 获取6-7页，确保覆盖前100个
         else:
             logger.info(f"开始获取用户 {user_id} 的前 {count} 个作品")
             # 根据count参数计算需要的页数，每页20个视频
@@ -416,8 +417,10 @@ class TiKhubAPIClient:
                 logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
                 
                 # 如果有筛选条件，检查是否已达到最大视频数量
-                if (keyword or project_name) and len(all_videos) >= max_videos_to_check:
-                    logger.info(f"已获取 {len(all_videos)} 个视频，达到最大限制 {max_videos_to_check} 个，停止获取更多页面")
+                # 修正：不要在刚好达到100时停止，因为可能需要完整的这一页数据
+                # 只有在明显超过时才停止（比如超过120个），确保不会遗漏边界视频
+                if (keyword or project_name) and len(all_videos) >= max_videos_to_check + 20:
+                    logger.info(f"已获取 {len(all_videos)} 个视频，超过限制 {max_videos_to_check}，停止获取更多页面")
                     break
                 
                 # 更新cursor和页数 - 尝试多种可能的cursor位置
@@ -511,8 +514,12 @@ class TiKhubAPIClient:
         
         # 如果有筛选条件，确保只处理前100个视频
         if (keyword or project_name) and len(all_videos) > max_videos_to_check:
+            logger.info(f"获取了 {len(all_videos)} 个视频，将截取前 {max_videos_to_check} 个进行处理")
+            # 记录第95-100位视频的信息，用于调试
+            for i in range(94, min(100, len(all_videos))):
+                video = all_videos[i]
+                logger.debug(f"第{i+1}位视频ID: {video.get('id', 'unknown')}, 描述前50字符: {video.get('desc', '')[:50]}")
             all_videos = all_videos[:max_videos_to_check]
-            logger.info(f"截取前 {max_videos_to_check} 个视频进行处理，实际处理 {len(all_videos)} 个视频")
         
         # 从视频列表构建VideoDetail对象，并获取额外的指标数据
         video_details = []
