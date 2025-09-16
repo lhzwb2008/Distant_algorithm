@@ -660,8 +660,20 @@ class TiKhubAPIClient:
             
             response = self._make_request('/api/v1/tiktok/app/v3/fetch_one_video', params)
             
-            if response and 'aweme_detail' in response:
-                aweme_detail = response['aweme_detail']
+            # 兼容处理两种响应格式：
+            # 格式1（常见）: response.aweme_detail
+            # 格式2（特殊情况，如marilynl69用户）: response.data.aweme_detail
+            aweme_detail = None
+            if response:
+                # 优先检查常见格式
+                if 'aweme_detail' in response and response['aweme_detail']:
+                    aweme_detail = response['aweme_detail']
+                # 如果常见格式没有数据，检查特殊格式
+                elif 'data' in response and isinstance(response['data'], dict) and 'aweme_detail' in response['data']:
+                    aweme_detail = response['data']['aweme_detail']
+                    logger.debug(f"视频 {video_id} 使用特殊响应格式 (data.aweme_detail)")
+            
+            if aweme_detail:
                 
                 # 获取视频下载链接
                 video_info = aweme_detail.get('video', {})

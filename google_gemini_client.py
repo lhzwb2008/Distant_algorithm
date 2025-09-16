@@ -582,15 +582,95 @@ class GoogleGeminiClient:
         except json.JSONDecodeError as e:
             logger.error(f"JSON解析失败: {e}")
             logger.error(f"问题JSON内容: {json_str if 'json_str' in locals() else 'N/A'}")
+            
+            # 使用备用方法：直接提取字段值
+            try:
+                import re
+                
+                # 提取各个字段的值
+                fields = {}
+                
+                # 提取content_summary（使用更宽松的方法）
+                # 查找content_summary的开始
+                summary_start = json_str.find('"content_summary"')
+                if summary_start != -1:
+                    # 找到值的开始（跳过键、冒号和空格）
+                    value_start = json_str.find('"', summary_start + len('"content_summary"') + 1)
+                    if value_start != -1:
+                        # 找到值的结束（查找未转义的引号后跟逗号或换行）
+                        i = value_start + 1
+                        while i < len(json_str):
+                            if json_str[i] == '"' and (i == 0 or json_str[i-1] != '\\'):
+                                # 检查后面是否是逗号或换行
+                                if i + 1 < len(json_str) and json_str[i+1] in ',\n':
+                                    content = json_str[value_start+1:i]
+                                    # 处理转义字符
+                                    content = content.replace('\\"', '"')
+                                    content = content.replace('\\n', '\n')
+                                    content = content.replace('\\t', '\t')
+                                    fields['content_summary'] = content
+                                    break
+                            i += 1
+                
+                # 提取数值字段
+                for field in ['keyword_relevance', 'originality_score', 'clarity_score', 
+                             'spam_score', 'promotion_score', 'total_score']:
+                    pattern = f'"{field}"\\s*:\\s*(\\d+)'
+                    match = re.search(pattern, json_str)
+                    if match:
+                        fields[field] = int(match.group(1))
+                
+                # 提取reasoning对象
+                reasoning_match = re.search(r'"reasoning"\s*:\s*\{([^}]+)\}', json_str, re.DOTALL)
+                if reasoning_match:
+                    reasoning_content = reasoning_match.group(1)
+                    reasoning = {}
+                    
+                    for r_field in ['keyword_reasoning', 'originality_reasoning', 
+                                   'clarity_reasoning', 'spam_reasoning', 'promotion_reasoning']:
+                        r_pattern = f'"{r_field}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"'
+                        r_match = re.search(r_pattern, reasoning_content, re.DOTALL)
+                        if r_match:
+                            reasoning[r_field] = r_match.group(1).replace('\\"', '"')
+                    
+                    if reasoning:
+                        fields['reasoning'] = reasoning
+                
+                # 如果成功提取了必要的字段，创建VideoAnalysisResult
+                if fields and 'total_score' in fields:
+                    return VideoAnalysisResult(
+                        content_summary=fields.get('content_summary', ''),
+                        keyword_relevance=fields.get('keyword_relevance', 0),
+                        originality_score=fields.get('originality_score', 0),
+                        clarity_score=fields.get('clarity_score', 0),
+                        spam_score=fields.get('spam_score', 0),
+                        promotion_score=fields.get('promotion_score', 0),
+                        total_score=fields.get('total_score', 0),
+                        reasoning=fields.get('reasoning', {})
+                    )
+                    
+            except Exception as extract_e:
+                logger.error(f"备用提取方法也失败: {extract_e}")
+            
             return None
         except Exception as e:
             logger.error(f"解析Gemini分析结果失败: {e}")
             return None
     
     def _fix_json_format(self, json_str: str) -> str:
-        """修复常见的JSON格式问题"""
+        """使用智能方法修复JSON格式问题"""
         try:
             import re
+            import json5  # 尝试使用json5库，它更宽容
+            
+            # 首先尝试用json5解析
+            try:
+                # json5支持更宽松的JSON格式
+                result = json5.loads(json_str)
+                # 如果成功，转回标准JSON
+                return json.dumps(result, ensure_ascii=False)
+            except:
+                pass  # 如果json5也失败，继续其他修复方法
             
             # 移除可能的markdown标记
             json_str = re.sub(r'^```json\s*', '', json_str, flags=re.IGNORECASE)
@@ -600,40 +680,144 @@ class GoogleGeminiClient:
             json_str = re.sub(r'//.*?\n', '\n', json_str)
             json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
             
+            # 智能修复字符串中的嵌套引号
+            # 使用更智能的方法：解析JSON结构并修复字符串值
+            def fix_string_values(text):
+                """智能修复字符串值中的引号"""
+                result = []
+                i = 0
+                in_string = False
+                in_key = False
+                escape_next = False
+                string_start = -1
+                
+                while i < len(text):
+                    char = text[i]
+                    
+                    if escape_next:
+                        result.append(char)
+                        escape_next = False
+                        i += 1
+                        continue
+                    
+                    if char == '\\':
+                        result.append(char)
+                        escape_next = True
+                        i += 1
+                        continue
+                    
+                    if not in_string:
+                        if char == '"':
+                            # 开始一个字符串
+                            in_string = True
+                            string_start = len(result)
+                            result.append(char)
+                            
+                            # 检查是否是键还是值
+                            # 向前查找冒号
+                            j = i + 1
+                            while j < len(text) and text[j] not in '":':
+                                j += 1
+                            if j < len(text) and text[j] == ':':
+                                in_key = True
+                            else:
+                                in_key = False
+                        else:
+                            result.append(char)
+                    else:
+                        # 在字符串内部
+                        if char == '"':
+                            # 检查这是否是字符串的结束
+                            next_chars = text[i+1:i+3] if i+1 < len(text) else ""
+                            
+                            # 如果后面是逗号、冒号、空格、换行、}、]，则是字符串结束
+                            if next_chars and next_chars[0] in ',:\n\r\t }]':
+                                # 字符串结束
+                                in_string = False
+                                in_key = False
+                                result.append(char)
+                            elif not in_key and i + 1 < len(text):
+                                # 在值字符串中，不是结束引号，需要转义
+                                result.append('\\')
+                                result.append(char)
+                            else:
+                                result.append(char)
+                        else:
+                            result.append(char)
+                    
+                    i += 1
+                
+                return ''.join(result)
+            
+            # 应用智能修复
+            json_str = fix_string_values(json_str)
+            
+            # 修复其他常见问题
             # 修复尾随逗号
             json_str = re.sub(r',\s*}', '}', json_str)
             json_str = re.sub(r',\s*]', ']', json_str)
             
-            # 修复错误的转义引号键名（如 \"key" 应该是 "key"）
-            json_str = re.sub(r'\\"([^"]+)\\"\s*:', r'"\1":', json_str)
+            # 修复缺少逗号
+            json_str = re.sub(r'}\s*\n\s*"', '},\n"', json_str)
+            json_str = re.sub(r'(\d+)\s*\n\s*"', r'\1,\n"', json_str)
+            json_str = re.sub(r'(true|false|null)\s*\n\s*"', r'\1,\n"', json_str)
             
-            # 修复字符串值中的未转义引号
-            lines = json_str.split('\n')
-            fixed_lines = []
-            
-            for line in lines:
-                # 处理键值对行
-                if ':' in line and '"' in line:
-                    # 匹配键值对模式："key": "value"
-                    match = re.match(r'^(\s*"[^"]+"\s*:\s*)"(.*)"(\s*,?\s*)$', line)
-                    if match:
-                        prefix, content, suffix = match.groups()
-                        # 只转义内容中的未转义引号
-                        # 先处理已经转义的引号，避免重复转义
-                        content = content.replace('\\"', '___ESCAPED_QUOTE___')
-                        content = content.replace('"', '\\"')
-                        content = content.replace('___ESCAPED_QUOTE___', '\\"')
-                        line = f'{prefix}"{content}"{suffix}'
-                fixed_lines.append(line)
-            
-            json_str = '\n'.join(fixed_lines)
-            
-            # 修复未引用的键名（只处理未被引号包围的键名）
-            json_str = re.sub(r'(?<!")\b(\w+)\b(?!")\s*:', r'"\1":', json_str)
+            # 尝试再次用json5解析修复后的结果
+            try:
+                result = json5.loads(json_str)
+                return json.dumps(result, ensure_ascii=False)
+            except:
+                pass
             
             return json_str
+            
         except Exception as e:
             logger.warning(f"JSON格式修复失败: {e}")
+            
+            # 最后的尝试：使用正则表达式提取关键字段
+            try:
+                # 提取关键字段的值
+                import re
+                
+                fields = {}
+                patterns = {
+                    'content_summary': r'"content_summary"\s*:\s*"([^"]*(?:\\.[^"]*)*)"',
+                    'keyword_relevance': r'"keyword_relevance"\s*:\s*(\d+)',
+                    'originality_score': r'"originality_score"\s*:\s*(\d+)',
+                    'clarity_score': r'"clarity_score"\s*:\s*(\d+)',
+                    'spam_score': r'"spam_score"\s*:\s*(\d+)',
+                    'promotion_score': r'"promotion_score"\s*:\s*(\d+)',
+                    'total_score': r'"total_score"\s*:\s*(\d+)',
+                }
+                
+                for field, pattern in patterns.items():
+                    match = re.search(pattern, json_str, re.DOTALL)
+                    if match:
+                        if field == 'content_summary':
+                            fields[field] = match.group(1).replace('\\"', '"')
+                        else:
+                            fields[field] = int(match.group(1))
+                
+                # 提取reasoning
+                reasoning_match = re.search(r'"reasoning"\s*:\s*{([^}]*)}"', json_str, re.DOTALL)
+                if reasoning_match:
+                    fields['reasoning'] = {}
+                    reasoning_content = reasoning_match.group(1)
+                    
+                    reasoning_fields = ['keyword_reasoning', 'originality_reasoning', 
+                                      'clarity_reasoning', 'spam_reasoning', 'promotion_reasoning']
+                    
+                    for r_field in reasoning_fields:
+                        r_pattern = f'"{r_field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"'
+                        r_match = re.search(r_pattern, reasoning_content, re.DOTALL)
+                        if r_match:
+                            fields['reasoning'][r_field] = r_match.group(1).replace('\\"', '"')
+                
+                if fields:
+                    return json.dumps(fields, ensure_ascii=False)
+            except:
+                pass
+            
             return json_str
     
     def cleanup_temp_file(self, file_path: str):

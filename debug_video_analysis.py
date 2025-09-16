@@ -116,8 +116,15 @@ class VideoDebugger:
                     logger.error("❌ 这个视频ID可能已被删除、私有化或不可访问")
                     return None
             
-            if response and 'aweme_detail' in response and response['aweme_detail']:
-                video_detail = response['aweme_detail']
+            # 兼容处理两种响应格式
+            video_detail = None
+            if response:
+                if 'aweme_detail' in response and response['aweme_detail']:
+                    video_detail = response['aweme_detail']
+                elif 'data' in response and isinstance(response['data'], dict) and 'aweme_detail' in response['data']:
+                    video_detail = response['data']['aweme_detail']
+            
+            if video_detail:
                 logger.info(f"✅ 视频标题: {video_detail.get('desc', 'N/A')}")
                 logger.info(f"✅ 视频时长: {video_detail.get('duration', 'N/A')}ms")
                 logger.info(f"✅ 视频作者: {video_detail.get('author', {}).get('nickname', 'N/A')}")
@@ -148,8 +155,15 @@ class VideoDebugger:
             
             logger.info(f"📊 URL API响应: {response}")
             
-            if response and 'aweme_detail' in response:
-                video_detail = response['aweme_detail']
+            # 兼容处理两种响应格式
+            video_detail = None
+            if response:
+                if 'aweme_detail' in response and response['aweme_detail']:
+                    video_detail = response['aweme_detail']
+                elif 'data' in response and isinstance(response['data'], dict) and 'aweme_detail' in response['data']:
+                    video_detail = response['data']['aweme_detail']
+            
+            if video_detail:
                 video_play_addr = video_detail.get('video', {}).get('play_addr', {})
                 url_list = video_play_addr.get('url_list', [])
                 

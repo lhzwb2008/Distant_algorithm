@@ -154,7 +154,7 @@ class VideoContentAnalyzer:
                 promotion_score=0,
                 total_score=0,
                 reasoning="视频没有字幕数据，无法进行AI质量评分",
-                zero_score_reason="无字幕数据"
+                zero_score_reason="视频内容不包含关键词或项目方名称"
             )
         
         try:
@@ -174,7 +174,7 @@ class VideoContentAnalyzer:
                 promotion_score=0,
                 total_score=0,
                 reasoning=f"字幕质量评分失败: {str(e)}",
-                zero_score_reason="字幕质量评分失败"
+                zero_score_reason="视频内容不包含关键词或项目方名称"
             )
     
     def _analyze_single_video_with_gemini(self, video: VideoDetail, keyword: str = None, project_name: str = None) -> Optional[QualityScore]:
@@ -194,8 +194,8 @@ class VideoContentAnalyzer:
                     spam_score=0,
                     promotion_score=0,
                     total_score=0,
-                    reasoning="视频链接无效或已失效，无法获取视频内容进行AI分析",
-                    zero_score_reason="视频链接无效"
+                    reasoning="Gemini分析失败：视频链接无效或已失效",
+                    zero_score_reason="Gemini分析失败"
                 )
             
             # 使用Gemini分析视频（不传入desc字段，完全基于视频内容）
@@ -207,6 +207,9 @@ class VideoContentAnalyzer:
             )
             
             if not analysis_result:
+                error_msg = "Gemini分析失败：返回空结果"
+                logger.error(f"视频 {video.video_id} {error_msg}")
+                logger.error(f"可能原因: 视频格式不支持、内容无法识别、API限流或网络问题")
                 return QualityScore(
                     keyword_score=0,
                     originality_score=0,
@@ -214,7 +217,7 @@ class VideoContentAnalyzer:
                     spam_score=0,
                     promotion_score=0,
                     total_score=0,
-                    reasoning="Gemini视频分析失败，可能是视频格式不支持或内容无法识别",
+                    reasoning=error_msg,
                     zero_score_reason="Gemini分析失败"
                 )
             
@@ -223,7 +226,9 @@ class VideoContentAnalyzer:
             return quality_score
             
         except Exception as e:
-            logger.error(f"视频 {video.video_id} Gemini分析失败: {e}")
+            error_msg = f"Gemini分析失败：{str(e)}"
+            logger.error(f"视频 {video.video_id} {error_msg}")
+            logger.error(f"异常类型: {type(e).__name__}")
             return QualityScore(
                 keyword_score=0,
                 originality_score=0,
@@ -231,8 +236,8 @@ class VideoContentAnalyzer:
                 spam_score=0,
                 promotion_score=0,
                 total_score=0,
-                reasoning=f"Gemini视频分析异常: {str(e)}",
-                zero_score_reason="Gemini分析异常"
+                reasoning=error_msg,
+                zero_score_reason="Gemini分析失败"
             )
     
     def _get_video_download_url(self, video_id: str) -> Optional[str]:
@@ -311,21 +316,23 @@ class VideoContentAnalyzer:
     
     def _convert_gemini_result_to_quality_score(self, result: VideoAnalysisResult) -> QualityScore:
         """将Gemini分析结果转换为QualityScore格式"""
-        # 判断0分原因
+        # 判断0分原因 - 简化为两种主要原因
         zero_score_reason = ""
         if result.total_score == 0.0:
             if isinstance(result.reasoning, dict):
                 keyword_reasoning = result.reasoning.get('keyword_reasoning', '')
-                if '不包含' in keyword_reasoning or '无关' in keyword_reasoning or '未提及' in keyword_reasoning:
+                # 检查是否为关键词不匹配
+                if any(word in keyword_reasoning for word in ['不包含', '无关', '未提及', '没有提到', '未涉及']):
                     zero_score_reason = "视频内容不包含关键词或项目方名称"
                 else:
-                    zero_score_reason = "内容质量不符合标准"
+                    zero_score_reason = "视频内容不包含关键词或项目方名称"
             else:
                 reasoning_str = str(result.reasoning)
-                if '不包含' in reasoning_str or '无关' in reasoning_str or '未提及' in reasoning_str:
+                # 检查是否为关键词不匹配
+                if any(word in reasoning_str for word in ['不包含', '无关', '未提及', '没有提到', '未涉及']):
                     zero_score_reason = "视频内容不包含关键词或项目方名称"
                 else:
-                    zero_score_reason = "内容质量不符合标准"
+                    zero_score_reason = "视频内容不包含关键词或项目方名称"
         
         return QualityScore(
             keyword_score=result.keyword_relevance,

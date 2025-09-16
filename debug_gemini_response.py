@@ -38,11 +38,17 @@ def debug_video_analysis():
             params={"aweme_id": test_video_id}
         )
         
-        if not response or 'aweme_detail' not in response:
+        # 兼容处理两种响应格式
+        aweme_detail = None
+        if response:
+            if 'aweme_detail' in response and response['aweme_detail']:
+                aweme_detail = response['aweme_detail']
+            elif 'data' in response and isinstance(response['data'], dict) and 'aweme_detail' in response['data']:
+                aweme_detail = response['data']['aweme_detail']
+        
+        if not aweme_detail:
             logger.error("无法获取视频信息")
             return
-            
-        aweme_detail = response['aweme_detail']
         
         # 创建VideoDetail对象
         from datetime import datetime
