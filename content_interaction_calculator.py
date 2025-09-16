@@ -18,34 +18,34 @@ class ContentInteractionCalculator:
         """获取粉丝数量系数（系数1）
         
         根据粉丝数量确定基准系数：
-        - 0-100：基准 = 1.5倍粉丝量
-        - 100-1k：基准 = 1.0倍粉丝量
-        - 1k-5k：基准 = 0.24倍粉丝量
-        - 5k-10k：基准 = 0.10倍粉丝量
-        - 10k-50k：基准 = 0.04倍粉丝量
-        - 50k-100k：基准 = 0.05倍粉丝量
-        - 100k-500k：基准 = 0.06倍粉丝量
-        - 500k-1M：基准 = 0.05倍粉丝量
-        - 1M+：基准 = 0.04倍粉丝量
+        - 0-100：基准 = 3倍粉丝量
+        - 100-1k：基准 = 2倍粉丝量
+        - 1k-5k：基准 = 1倍粉丝量
+        - 5k-10k：基准 = 0.8倍粉丝量
+        - 10k-50k：基准 = 0.7倍粉丝量
+        - 50k-100k：基准 = 0.6倍粉丝量
+        - 100k-500k：基准 = 0.5倍粉丝量
+        - 500k-1M：基准 = 0.4倍粉丝量
+        - 1M+：基准 = 0.3倍粉丝量
         """
         if follower_count <= 100:
-            return 1.5
+            return 3.0
         elif follower_count <= 1000:
-            return 1.0
+            return 2.0
         elif follower_count <= 5000:
-            return 0.24
+            return 1.0
         elif follower_count <= 10000:
-            return 0.10
-        elif follower_count < 50000:
-            return 0.04
+            return 0.8
+        elif follower_count <= 50000:
+            return 0.7
         elif follower_count <= 100000:
-            return 0.05
+            return 0.6
         elif follower_count <= 500000:
-            return 0.06
+            return 0.5
         elif follower_count <= 1000000:
-            return 0.05
+            return 0.4
         else:
-            return 0.04
+            return 0.3
     
     def _get_view_coefficient(self, views: int) -> float:
         """获取播放量系数（系数2）
@@ -73,15 +73,15 @@ class ContentInteractionCalculator:
         
         评分公式：min((views / (followers * 基准系数)) * 100, 100)
         基准系数根据粉丝数量分层：
-        - 0-100：基准 = 1.5倍粉丝量
-        - 100-1k：基准 = 1.0倍粉丝量
-        - 1k-5k：基准 = 0.24倍粉丝量
-        - 5k-10k：基准 = 0.10倍粉丝量
-        - 10k-50k：基准 = 0.04倍粉丝量
-        - 50k-100k：基准 = 0.05倍粉丝量
-        - 100k-500k：基准 = 0.06倍粉丝量
-        - 500k-1M：基准 = 0.05倍粉丝量
-        - 1M+：基准 = 0.04倍粉丝量
+        - 0-100：基准 = 3倍粉丝量
+        - 100-1k：基准 = 2倍粉丝量
+        - 1k-5k：基准 = 1倍粉丝量
+        - 5k-10k：基准 = 0.8倍粉丝量
+        - 10k-50k：基准 = 0.7倍粉丝量
+        - 50k-100k：基准 = 0.6倍粉丝量
+        - 100k-500k：基准 = 0.5倍粉丝量
+        - 500k-1M：基准 = 0.4倍粉丝量
+        - 1M+：基准 = 0.3倍粉丝量
         
         Args:
             views: 视频播放量
@@ -146,23 +146,23 @@ class ContentInteractionCalculator:
     def _get_follower_tier_description(self, follower_count: int) -> str:
         """获取粉丝数量分层描述"""
         if follower_count <= 100:
-            return f"0-100粉丝层级 (系数1.5)"
+            return f"0-100粉丝层级 (系数3.0)"
         elif follower_count <= 1000:
-            return f"100-1k粉丝层级 (系数1.0)"
+            return f"100-1k粉丝层级 (系数2.0)"
         elif follower_count <= 5000:
-            return f"1k-5k粉丝层级 (系数0.24)"
+            return f"1k-5k粉丝层级 (系数1.0)"
         elif follower_count <= 10000:
-            return f"5k-10k粉丝层级 (系数0.10)"
-        elif follower_count < 50000:
-            return f"10k-50k粉丝层级 (系数0.04)"
+            return f"5k-10k粉丝层级 (系数0.8)"
+        elif follower_count <= 50000:
+            return f"10k-50k粉丝层级 (系数0.7)"
         elif follower_count <= 100000:
-            return f"50k-100k粉丝层级 (系数0.05)"
+            return f"50k-100k粉丝层级 (系数0.6)"
         elif follower_count <= 500000:
-            return f"100k-500k粉丝层级 (系数0.06)"
+            return f"100k-500k粉丝层级 (系数0.5)"
         elif follower_count <= 1000000:
-            return f"500k-1M粉丝层级 (系数0.05)"
+            return f"500k-1M粉丝层级 (系数0.4)"
         else:
-            return f"1M+粉丝层级 (系数0.04)"
+            return f"1M+粉丝层级 (系数0.3)"
         
     def calculate_like_score(self, likes: int, views: int, follower_count: int = 0) -> float:
         """计算点赞数得分

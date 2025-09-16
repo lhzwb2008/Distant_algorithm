@@ -346,8 +346,11 @@ class TiKhubAPIClient:
         cursor = 0
         page = 1
         
-        # 分页获取视频
-        while page <= max_pages:
+        # 分页获取视频 - 修改逻辑：不依赖页数限制，持续获取直到无更多视频或达到目标数量
+        max_attempts = 50  # 设置最大尝试次数防止无限循环
+        attempt = 0
+        
+        while attempt < max_attempts:
             # 直接调用API获取用户视频列表（根据API文档完整配置）
             params = {
                 'secUid': user_id,
@@ -416,12 +419,17 @@ class TiKhubAPIClient:
                 all_videos.extend(videos)
                 logger.info(f"第{page}页获取到 {len(videos)} 个视频，累计 {len(all_videos)} 个")
                 
-                # 如果有筛选条件，检查是否已达到最大视频数量
-                # 修正：不要在刚好达到100时停止，因为可能需要完整的这一页数据
-                # 只有在明显超过时才停止（比如超过120个），确保不会遗漏边界视频
-                if (keyword or project_name) and len(all_videos) >= max_videos_to_check + 20:
-                    logger.info(f"已获取 {len(all_videos)} 个视频，超过限制 {max_videos_to_check}，停止获取更多页面")
-                    break
+                # 检查是否已达到足够的视频数量（对于筛选场景，获取更多视频以确保有足够的候选）
+                if (keyword or project_name):
+                    # 对于有筛选条件的情况，获取至少150个视频以确保能筛选出足够的匹配视频
+                    if len(all_videos) >= 150:
+                        logger.info(f"已获取 {len(all_videos)} 个视频，足够进行筛选，停止获取更多页面")
+                        break
+                else:
+                    # 对于无筛选条件的情况，按照指定数量获取
+                    if len(all_videos) >= count:
+                        logger.info(f"已获取 {len(all_videos)} 个视频，达到目标数量 {count}，停止获取更多页面")
+                        break
                 
                 # 更新cursor和页数 - 尝试多种可能的cursor位置
                 new_cursor = None
@@ -491,15 +499,10 @@ class TiKhubAPIClient:
                 
                 cursor = new_cursor
                 page += 1
-                
-                # 如果这页视频少于20个，说明已经到最后一页
-                if len(videos) < 20:
-                    logger.info(f"第{page-1}页视频数量少于20个，已到达最后一页")
-                    break
+                attempt += 1
                 
                 # 添加请求间隔，避免过于频繁的API调用
-                if page <= max_pages:
-                    time.sleep(0.5)  # 500ms间隔
+                time.sleep(0.5)  # 500ms间隔
                     
             except Exception as e:
                 if "400 Client Error" in str(e) and page > 1:
@@ -509,8 +512,31 @@ class TiKhubAPIClient:
                 else:
                     logger.error(f"第{page}页获取失败: {e}")
                     break
+                    
+        # 检查是否达到最大尝试次数
+        if attempt >= max_attempts:
+            logger.warning(f"已达到最大尝试次数 {max_attempts}，停止获取")
+        
         
         logger.info(f"分页获取完成，总共获取 {len(all_videos)} 个视频")
+        
+        # 视频去重：根据视频ID去重，保持原有顺序（最新在前）
+        seen_video_ids = set()
+        unique_videos = []
+        duplicate_count = 0
+        
+        for video in all_videos:
+            video_id = video.get('id', video.get('aweme_id', 'unknown'))
+            if video_id not in seen_video_ids and video_id != 'unknown':
+                seen_video_ids.add(video_id)
+                unique_videos.append(video)
+            else:
+                duplicate_count += 1
+        
+        if duplicate_count > 0:
+            logger.info(f"去重完成：移除 {duplicate_count} 个重复视频，剩余 {len(unique_videos)} 个唯一视频")
+        
+        all_videos = unique_videos
         
         # 如果有筛选条件，确保只处理前100个视频
         if (keyword or project_name) and len(all_videos) > max_videos_to_check:
@@ -518,7 +544,8 @@ class TiKhubAPIClient:
             # 记录第95-100位视频的信息，用于调试
             for i in range(94, min(100, len(all_videos))):
                 video = all_videos[i]
-                logger.debug(f"第{i+1}位视频ID: {video.get('id', 'unknown')}, 描述前50字符: {video.get('desc', '')[:50]}")
+                video_id = video.get('id', video.get('aweme_id', 'unknown'))
+                logger.debug(f"第{i+1}位视频ID: {video_id}, 描述前50字符: {video.get('desc', '')[:50]}")
             all_videos = all_videos[:max_videos_to_check]
         
         # 从视频列表构建VideoDetail对象，并获取额外的指标数据
